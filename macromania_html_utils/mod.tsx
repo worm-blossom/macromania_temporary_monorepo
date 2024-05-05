@@ -287,7 +287,7 @@ export function Html5(
 
             if (resolved === null) {
               if (ctx.mustMakeProgress()) {
-                l.warn(ctx, `Failed to resolve a html-utils dependency:`);
+                l.warn(ctx, `Failed to resolve an html-utils dependency:`);
                 l.logGroup(ctx, () => {
                   l.warn(ctx, `Dependency: ${styleAssetPath(info.path)}`);
                   l.warn(

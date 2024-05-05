@@ -343,7 +343,7 @@ export type DefProps = {
   /**
    * The name by which to reference this def.
    *
-   * Provides the default value for the `id` and `r` props.
+   * Provides the default value for the `r` prop.
    */
   n: string;
   /**
@@ -404,7 +404,7 @@ export type DefProps = {
   noPreview?: boolean;
   /**
    * Set this to true to *not* highlight defenitions and references to hover, even if there is a preview.
-   * When noPreview s set to true, then no highlighting occurs anyways. 
+   * When `noPreview` is set to true, then no highlighting occurs anyways.
    */
   noHighlight?: boolean;
   /**
@@ -523,6 +523,7 @@ export function Def(props: DefProps): Expression {
           classes: props.defClass,
           data: defData,
           children: props.children,
+          queryParams: [],
         });
 
         if (isMathMode(ctx) && props.math) {
@@ -614,8 +615,35 @@ function addScopeDeps(ctx: Context) {
   }
 }
 
+export type ReferenceProps = {
+  /**
+   * The name to reference.
+   */
+  n: string;
+  /**
+   * Query parameters to append to the url of the reference.
+   */
+  queryParams?: [string, string][];
+  /**
+   * A different id to use in the url of the reference than the one registered at the definition.
+   */
+  replacementId?: string;
+  /**
+   * Additional data attributes to add to this reference.
+   */
+  extraData?: Record<string, Expression>;
+  /**
+   * If true, do not show a preview when hovering over the reference.
+   */
+  noPreview?: boolean;
+  /**
+   * The rendered body of the reference, overwriting the default one.
+   */
+  children?: Expressions;
+};
+
 export function R(
-  { n, children }: { n: string; children?: Expressions },
+  { n, children, queryParams = [], replacementId, noPreview, extraData }: ReferenceProps,
 ): Expression {
   return (
     <impure
@@ -628,6 +656,10 @@ export function R(
           info,
           mode: "r",
           children: children,
+          queryParams,
+          replacementId,
+          noPreview,
+          extraData,
         });
       }}
     />
@@ -635,7 +667,7 @@ export function R(
 }
 
 export function Rb(
-  { n, children }: { n: string; children?: Expressions },
+  { n, children, queryParams = [], replacementId, noPreview, extraData }: ReferenceProps,
 ): Expression {
   return (
     <impure
@@ -648,6 +680,10 @@ export function Rb(
           info,
           mode: "rb",
           children: children,
+          queryParams,
+          replacementId,
+          noPreview,
+          extraData,
         });
       }}
     />
@@ -655,7 +691,7 @@ export function Rb(
 }
 
 export function Rs(
-  { n, children }: { n: string; children?: Expressions },
+  { n, children, queryParams = [], replacementId, noPreview, extraData }: ReferenceProps,
 ): Expression {
   return (
     <impure
@@ -668,6 +704,10 @@ export function Rs(
           info,
           mode: "rs",
           children: children,
+          queryParams,
+          replacementId,
+          noPreview,
+          extraData,
         });
       }}
     />
@@ -675,7 +715,7 @@ export function Rs(
 }
 
 export function Rsb(
-  { n, children }: { n: string; children?: Expressions },
+  { n, children, queryParams = [], replacementId, noPreview, extraData }: ReferenceProps,
 ): Expression {
   return (
     <impure
@@ -688,6 +728,10 @@ export function Rsb(
           info,
           mode: "rsb",
           children: children,
+          queryParams,
+          replacementId,
+          noPreview,
+          extraData,
         });
       }}
     />
@@ -695,11 +739,9 @@ export function Rsb(
 }
 
 export function Rc(
-  { n, children, render }: {
-    n: string;
-    children?: Expressions;
-    render?: (ctx: Context, numbering: number[]) => Expression;
-  },
+  { n, children, queryParams = [], replacementId, noPreview, extraData, render }:
+    & ReferenceProps
+    & { render?: (ctx: Context, numbering: number[]) => Expression },
 ): Expression {
   return (
     <impure
@@ -713,6 +755,10 @@ export function Rc(
           mode: "rc",
           render,
           children: children,
+          queryParams,
+          replacementId,
+          noPreview,
+          extraData,
         });
       }}
     />
@@ -720,11 +766,9 @@ export function Rc(
 }
 
 export function Rcb(
-  { n, children, render }: {
-    n: string;
-    children?: Expressions;
-    render?: (ctx: Context, numbering: number[]) => Expression;
-  },
+  { n, children, queryParams = [], replacementId, noPreview, extraData, render }:
+    & ReferenceProps
+    & { render?: (ctx: Context, numbering: number[]) => Expression },
 ): Expression {
   return (
     <impure
@@ -738,6 +782,10 @@ export function Rcb(
           mode: "rcb",
           render,
           children: children,
+          queryParams,
+          replacementId,
+          noPreview,
+          extraData,
         });
       }}
     />
@@ -754,6 +802,10 @@ function linkTag(opts: {
   classes?: Expression[] | Expression;
   data?: Record<string, Expression>;
   render?: (ctx: Context, numbering: number[]) => Expression;
+  queryParams: [string, string][];
+  replacementId?: string;
+  noPreview?: boolean;
+  extraData?: Record<string, Expression>;
 }): Expression | null {
   // Add dependencies that are required on all pages that contain any refs.
   const config = getConfig(opts.ctx);
@@ -848,8 +900,11 @@ function linkTag(opts: {
     data!,
     opts.name,
     true,
-    !opts.info.noPreview,
+    !(opts.info.noPreview || opts.noPreview),
     !opts.info.noHighlight,
+    opts.queryParams,
+    opts.replacementId,
+    opts.extraData,
   );
 
   for (const key in opts.data) {
@@ -869,7 +924,7 @@ function linkTag(opts: {
     : <exps x={exps} />;
 
   if (isMathMode(opts.ctx) || opts.info.ensureMath) {
-    const href = hrefToName(opts.ctx, opts.name);
+    const href = hrefToName(opts.ctx, opts.name, opts.replacementId);
 
     if (href === null) {
       if (opts.ctx.mustMakeProgress()) {
@@ -906,6 +961,7 @@ function linkTag(opts: {
         data={finalData}
         name={opts.name}
         children={children}
+        replacementId={opts.replacementId}
       />
     );
   }
@@ -934,6 +990,9 @@ function addDataAttributes(
   includeRef: boolean,
   includeAnchor: boolean,
   noHighlight: boolean,
+  queryParams: [string, string][],
+  replacementId?: string,
+  extraData: Record<string, Expression> = {},
 ) {
   if (includeRef) {
     data.ref = name;
@@ -941,7 +1000,15 @@ function addDataAttributes(
 
   if (includeAnchor) {
     const previewPath = getPreviewPath(ctx);
-    previewPath.push(`${name}.html?def§${name}`);
+
+    let finalComponent = `${name}.html?def§${
+      replacementId === undefined ? name : replacementId
+    }`;
+    for (const [key, value] of queryParams) {
+      finalComponent = `${finalComponent}&${key}§${value}`;
+    }
+
+    previewPath.push(finalComponent);
 
     data["preview-anchor"] = (
       <impure
@@ -954,5 +1021,9 @@ function addDataAttributes(
 
   if (noHighlight) {
     data["hl"] = "true";
+  }
+
+  for (const key in extraData) {
+    data[key] = extraData[key];
   }
 }

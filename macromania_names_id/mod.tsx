@@ -132,10 +132,12 @@ export function getNameAndDebug(
 
 /**
  * Create a URL suitable for hyperlinking to the given name.
+ * 
+ * If a `replacementId` is supplied, uses it instead of the registered id in the link.
  *
  * Returns null if the name has not been bound.
  */
-export function hrefToName(ctx: Context, name: string): string | null {
+export function hrefToName(ctx: Context, name: string, replacementId?: string): string | null {
   const targetInfo = getName(ctx, name);
 
   if (targetInfo === undefined) {
@@ -143,21 +145,23 @@ export function hrefToName(ctx: Context, name: string): string | null {
   } else {
     return `${
       hrefTo(ctx, absoluteOutFsPath(targetInfo.absolutePath))
-    }#${targetInfo.id}`;
+    }#${replacementId === undefined ? targetInfo.id : replacementId}`;
   }
 }
 
 /**
  * Create an `<A>` HTML element, with the `href` attribute being the link to the
  * given `name`, as determined by {@linkcode hrefToName}.
+ * 
+ * If a `replacementId` is supplied, uses it instead of the registered id in the link.
  */
 export function IdA(
-  props: AProps & { name: string; children?: Expressions },
+  props: AProps & { name: string; children?: Expressions, replacementId?: string },
 ): Expression {
   return (
     <impure
       fun={(ctx) => {
-        const href = hrefToName(ctx, props.name);
+        const href = hrefToName(ctx, props.name, props.replacementId);
         if (href === null) {
           if (ctx.mustMakeProgress()) {
             l.warn(
