@@ -1,3 +1,3 @@
-# Macromania Previews
+# Macromania Pseudocode
 
 TODO document this =S
