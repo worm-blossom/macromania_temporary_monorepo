@@ -382,3 +382,11 @@ export function RefLoc(
 function lineId(n: string, line: number): string {
   return `${n}L${line}`;
 }
+
+/**
+ * Return which css and js dependencies should be added to every html page with pseudocode.
+ */
+export function exposeCssAndJsDependencies(ctx: Context): [StylesheetDependencyInfo[], ScriptDependencyInfo[]] {
+  const config = getPseudocodeConfig(ctx);
+  return [config.cssDeps ?? [], config.jsDeps ?? []];
+}
