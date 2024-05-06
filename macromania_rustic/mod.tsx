@@ -1,10 +1,13 @@
 import { expandEmbeddedImportMap } from "https://deno.land/x/esbuild_deno_loader@0.9.0/src/shared.ts";
 import {
+  Deemph,
   Def,
+  Delimited,
   dependencyCss,
   dependencyJs,
   Div,
   Indent,
+  Keyword,
   Loc,
   PreviewScope,
   R,
@@ -37,274 +40,412 @@ import {
   Html5,
 } from "./deps.ts";
 import { SpliceLoc } from "../mod.tsx";
+import { Delimiters } from "../mod.tsx";
+import { DefProps } from "../mod.tsx";
 
-const l = createLogger("LoggerStructuredcode");
+const l = createLogger("LoggerRustic");
 const ConfigMacro = l.ConfigMacro;
-export { ConfigMacro as LoggerStructuredcode };
+export { ConfigMacro as LoggerRustic };
 
-/**
- * Three different styles of rendering delimiters.
- *
- * `c` renders C-style delimiters. `python` omits curly braces. `ruby` uses keywords instead of punctuation.
- */
-export type DelimiterStyle = "c" | "python" | "ruby";
-
-export type StructuredcodeConfig = {
+export type RusticConfig = {
   /**
    * How many colors to cycle through for the rainbow delimiters.
    * Defaults to three.
    */
   colorsOfTheRainbow?: number;
-  /**
-   * Which delimiter style to use. Defaults to python-style delimiters.
-   */
-  delimiterStyle?: DelimiterStyle;
 };
 
 const [
-  getStructuredcodeConfig,
-  ConfigStructuredcode,
-] = createConfigOptions<StructuredcodeConfig, StructuredcodeConfig>(
-  "ConfigStructuredcode",
+  getRusticConfig,
+  ConfigRustic,
+] = createConfigOptions<RusticConfig, RusticConfig>(
+  "ConfigRustic",
   () => ({
     colorsOfTheRainbow: 3,
-    delimiterStyle: "python",
   }),
   (oldValue, update) => {
     const newValue = { ...oldValue };
     if (update.colorsOfTheRainbow !== undefined) {
       newValue.colorsOfTheRainbow = update.colorsOfTheRainbow;
     }
-    if (update.delimiterStyle !== undefined) {
-      newValue.delimiterStyle = update.delimiterStyle;
-    }
 
     return newValue;
   },
 );
-export { ConfigStructuredcode };
+export { ConfigRustic };
 
-type StructuredcodeState = {
+type RusticState = {
   rainbowCount: number;
 };
 
-const [getStructuredcodeState, setStructuredcodeState] = createSubstate<
-  StructuredcodeState
+const [getRusticState, setRusticState] = createSubstate<
+  RusticState
 >(
   () => ({
     rainbowCount: 0,
   }),
 );
 
-export type DelimiterProps = {
-  /**
-   * The opening and the closing delimiter.
-   */
-  delims: [Expressions, Expressions];
-  /**
-   * Exclude the delimiters from rainbowowing, i.e., do not color them according to nesting depth.
-   */
-  noRainbow?: boolean;
-  /**
-   * The content to wrap in the delimiters.
-   */
-  children?: Expressions;
-};
-
-/**
- * Wrap the children between two delimiters.
- */
-export function Delimiters(
-  { delims, children, noRainbow }: DelimiterProps,
-): Expression {
-  if (noRainbow) {
-    return (
-      <>
-        <Span clazz={["open"]}>
-          <exps x={delims[0]} />
-        </Span>
-        <exps x={children} />
-        <Span clazz={["close"]}>
-          <exps x={delims[1]} />
-        </Span>
-      </>
-    );
+function rusticDef(props: DefProps, extraClass: string): Expression {
+  const defClass: Expression[] = ["rustic", extraClass];
+  if (Array.isArray(props.defClass)) {
+    props.defClass.forEach((clazz) => defClass.push(clazz));
+  } else if (props.defClass !== undefined) {
+    defClass.push(props.defClass);
   }
 
+  const refClass: Expression[] = ["rustic", extraClass];
+  if (Array.isArray(props.refClass)) {
+    props.refClass.forEach((clazz) => refClass.push(clazz));
+  } else if (props.refClass !== undefined) {
+    refClass.push(props.refClass);
+  }
+
+  return Def({...props, defClass, refClass});
+}
+
+/**
+ * Create a DefRef definition for a value.
+ */
+export function DefValue(props: DefProps): Expression {
+  return rusticDef(props, "value");
+}
+
+/**
+ * Create a DefRef definition for a type.
+ */
+export function DefType(props: DefProps): Expression {
+  return rusticDef(props, "type");
+}
+
+/**
+ * Create a DefRef definition for a field.
+ */
+export function DefField(props: DefProps): Expression {
+  return rusticDef(props, "field");
+}
+
+/**
+ * Create a DefRef definition for an enum variant.
+ */
+export function DefVariant(props: DefProps): Expression {
+  return rusticDef(props, "variant");
+}
+
+/**
+ * Create a DefRef definition for a function.
+ */
+export function DefFunction(props: DefProps): Expression {
+  return rusticDef(props, "function");
+}
+
+/**
+ * Create a DefRef definition for an interface.
+ */
+export function DefInterface(props: DefProps): Expression {
+  return rusticDef(props, "interface");
+}
+
+/**
+ * Wrap some code in parens, to make associativity explicit.
+ */
+export function Parens({ children }: { children?: Expressions }): Expression {
   return (
-    <lifecycle
-      pre={(ctx) => {
-        const state = getStructuredcodeState(ctx);
-        const config = getStructuredcodeConfig(ctx);
-
-        state.rainbowCount = (state.rainbowCount + 1) %
-          config.colorsOfTheRainbow!;
-      }}
-      post={(ctx) => {
-        const state = getStructuredcodeState(ctx);
-        const config = getStructuredcodeConfig(ctx);
-
-        state.rainbowCount = (state.rainbowCount - 1) %
-          config.colorsOfTheRainbow!;
-      }}
-    >
-      <impure
-        fun={(ctx) => {
-          const state = getStructuredcodeState(ctx);
-
-          const clazz = `rb${state.rainbowCount}`;
-
-          return (
-            <>
-              <Span clazz={[clazz, "open"]}>
-                <exps x={delims[0]} />
-              </Span>
-              <exps x={children} />
-              <Span clazz={[clazz, "close"]}>
-                <exps x={delims[1]} />
-              </Span>
-            </>
-          );
-        }}
-      />
-    </lifecycle>
+    <Delimiters delims={["(", ")"]}>
+      <exps x={children} />
+    </Delimiters>
   );
 }
 
 /**
- * Information to render delimiters in all supported `DelimiterStyle`s.
+ * An anonymous tuple type, i.e., an anonymous product.
  */
-export type ConfigurableDelimiters = {
-  /**
-   * The default delimiters, as rendered in C-style pseudocode.
-   */
-  c: [Expressions, Expressions];
-  /**
-   * Whether to omit these delimiters in Python-style pseudocode.
-   * Defaults to false.
-   */
-  pythonSkip?: boolean;
-  /**
-   * Alternate delimiters to use in Ruby-style pseudocode.
-   * Defaults to undefined, rendering the same as in c, even for ruby.
-   */
-  ruby?: [Expression, Expression];
-};
-
-/**
- * Props for the `Delimited` macro.
- */
-export type DelimitedProps = ConfigurableDelimiters & {
-  /**
-   * The code to place between the delimiters.
-   */
-  content: Expressions[];
-  /**
-   * Render the content Expressions in their own line each, or within a single, shared line of code.
-   */
-  multiline?: boolean;
-  /**
-   * Optional separator to place between the content Expressions.
-   */
-  separator?: Expressions;
-  /**
-   * Exclude the delimiters from rainbowowing, i.e., do not color them according to nesting depth.
-   */
-  noRainbow?: boolean;
-};
-
-/**
- * Render some content Expressions: wrapped in configurable delimiters,
- * optionally separated, and optionally rendered in their own line each.
- */
-export function Delimited(
-  { content, multiline, separator, c, pythonSkip, ruby, noRainbow }: DelimitedProps,
+export function TupleType(
+  { types, multiline }: { types?: Expressions[]; multiline?: boolean },
 ): Expression {
   return (
-    <impure
-      fun={(ctx) => {
-        const config = getStructuredcodeConfig(ctx);
-        const style = config.delimiterStyle;
-
-        let open = c[0];
-        let close = c[1];
-
-        if (style === "ruby" && ruby !== undefined) {
-          open = ruby[0];
-          close = ruby[1];
-
-          if (!multiline) {
-            open = <>{ruby[0]} </>;
-          }
-        }
-
-        const noDelims = multiline && (style === "python") && pythonSkip;
-
-        const separatedContent: Expressions = [];
-        for (let i = 0; i < content.length; i++) {
-          const exps = content[i];
-          const addSeparator = (separator !== undefined) &&
-            (multiline || (i + 1 < content.length));
-
-          if (addSeparator) {
-            separatedContent.push(
-              <>
-                <exps x={exps} />
-                <Deemph><exps x={separator} /></Deemph>
-                {multiline ? "" : " "}
-              </>,
-            );
-          } else {
-            if (!multiline && style === "ruby" && ruby !== undefined) {
-              separatedContent.push(<><exps x={exps} />{" "}</>);
-            } else {
-              separatedContent.push(<exps x={exps} />);
-            }
-          }
-        }
-
-        const betweenDelimiters = multiline
-        ? (
-          <SpliceLoc>
-            <Indent>
-              <exps
-                x={separatedContent.map((exp) => <Loc>{exp}</Loc>)}
-              />
-            </Indent>
-          </SpliceLoc>
-        )
-        : <exps x={separatedContent} />;
-
-        return noDelims ? betweenDelimiters : <Delimiters delims={[open, close]} noRainbow={noRainbow}>{betweenDelimiters}</Delimiters>;
-      }}
+    <Delimited
+      c={["(", ")"]}
+      content={types ?? []}
+      multiline={multiline}
+      separator=","
     />
   );
 }
 
 /**
- * Render a full-line comment.
- * Provides its own `<Loc>` invocation.
+ * An anonymous choice type, i.e., an anonymous sum.
  */
-export function DocComment({children}: {children?: Expressions}): Expression {
-  return <Loc><Div clazz="docComment"><exps x={children}/></Div></Loc>
+export function ChoiceType(
+  { types, multiline }: { types: Expressions[]; multiline?: boolean },
+): Expression {
+  const separatedContent: Expressions = [];
+  for (let i = 0; i < types.length; i++) {
+    const addPipe = multiline || (i > 0);
+
+    if (addPipe) {
+      separatedContent.push(
+        <>
+          {(!multiline && (i !== 0)) ? " " : ""}
+          <Deemph>|</Deemph> <exps x={types[i]} />
+        </>,
+      );
+    } else {
+      separatedContent.push(<exps x={types[i]} />);
+    }
+  }
+
+  return multiline
+    ? (
+      <SpliceLoc>
+        <Indent>
+          <exps
+            x={separatedContent.map((exp) => <Loc>{exp}</Loc>)}
+          />
+        </Indent>
+      </SpliceLoc>
+    )
+    : <exps x={separatedContent} />;
+}
+
+export type FunctionTypeProps = {
+  /**
+   * The sequence of argument types.
+   */
+  args: Expression[];
+  /**
+   * The return type.
+   */
+  ret: Expressions;
+  /**
+   * Whether to render the argument types one type per line.
+   */
+  multiline?: boolean;
+};
+
+/**
+ * A function type.
+ */
+export function FunctionType(
+  { args, ret, multiline }: FunctionTypeProps,
+): Expression {
+  return (
+    <>
+      <Delimited
+        c={["(", ")"]}
+        content={args}
+        multiline={multiline}
+        separator=","
+      />
+      {` `}
+      <Deemph>{`->`}</Deemph>
+      {` `}
+      <exps x={ret} />
+    </>
+  );
+}
+
+export type FunctionTypeNamedProps = {
+  /**
+   * The sequence of argument names and their types (name first, unique id second, type third).
+   */
+  args: [string, string, Expression][];
+  /**
+   * The return type.
+   */
+  ret: Expressions;
+  /**
+   * Whether to render the argument types one type per line.
+   */
+  multiline?: boolean;
+};
+
+/**
+ * A function type.
+ */
+export function FunctionTypeNamed(
+  { args, ret, multiline }: FunctionTypeNamedProps,
+): Expression {
+  return (
+    <FunctionType
+      args={args.map(([id, n, type]) => (
+        <TypeAnnotation
+          exp={<RenderFreshValue id={[id, n]} />}
+          type={type}
+        />
+      ))}
+      ret={ret}
+      multiline={multiline}
+    />
+  );
 }
 
 /**
- * Render a keyword.
+ * The type to indicate fresh ids that should be bound. Use a string if the id itself can be used as a DefRef `n` prop, use a pair of the id first and the desired `n` prop second otherwise.
  */
-export function Keyword(
-  { children }: { children: Expressions },
+export type FreshId = string | [string, string];
+
+export function RenderFreshValue(
+  { id }: { id: FreshId },
 ): Expression {
-  return <Span clazz="kw"><exps x={children}/></Span>;
+  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
+  return <DefValue n={n} r={r}/>;
+}
+
+export type ArrayTypeProps = {
+  /**
+   * The type of values contained in the arrays.
+   */
+  inner: Expressions;
+  /**
+   * How many items each array contains.
+   */
+  count: Expressions;
+};
+
+/**
+ * An array type, i.e., a sequence of known length containing values of the same type.
+ */
+export function ArrayType(
+  { inner, count }: ArrayTypeProps,
+): Expression {
+  return (
+    <Delimited
+      c={["[", "]"]}
+      content={[inner, count]}
+      separator=";"
+    />
+  );
+}
+
+export type PointerTypeProps = {
+  /**
+   * The type of values that the pointer can point to.
+   */
+  inner: Expressions;
+  /**
+   * Whether the pointer allows mutation, or is writeonly, or full opaque.
+   */
+  mut?: boolean | "writeonly" | "opaque";
+};
+
+/**
+ * A pointer type, i.e., a reference to exactly one value.
+ * Please keep null pointers out of pseudocode. Thank you.
+ */
+export function PointerType(
+  { inner, mut }: PointerTypeProps,
+): Expression {
+  const kw: Expression = mut
+    ? (typeof mut === "boolean"
+      ? <Keyword>mut</Keyword>
+      : <Keyword>{mut}</Keyword>)
+    : "";
+  return (
+    <>
+      <Deemph>&</Deemph>
+      {kw}
+      {kw === "" ? "" : " "}
+      <exps x={inner} />
+    </>
+  );
 }
 
 /**
- * Visually deemphasize a part of some pseudocode. 
+ * A slice type, i.e., a reference to zero or more values, consecutively stored in memory.
  */
-export function Deemph(
-  { children }: { children: Expressions },
+export function SliceType(
+  { inner, mut }: PointerTypeProps,
 ): Expression {
-  return <Span clazz="deemph"><exps x={children}/></Span>;
+  const kw: Expression = mut
+    ? (typeof mut === "boolean"
+      ? <Keyword>mut</Keyword>
+      : <Keyword>{mut}</Keyword>)
+    : "";
+  return (
+    <>
+      <Deemph>&</Deemph>
+      {kw}
+      {kw === "" ? "" : " "}
+      <Delimiters delims={["[", "]"]}>
+        <exps x={inner} />
+      </Delimiters>
+    </>
+  );
+}
+
+export type TypeApplicationRawProps = {
+  /**
+   * The type constructor.
+   */
+  constr: Expressions;
+  /**
+   * The sequence of argument types.
+   */
+  args: Expression[];
+  /**
+   * Whether to render the args one argument per line.
+   */
+  multiline?: boolean;
+};
+
+/**
+ * A type application for an arbitrary type constructor expression.
+ */
+export function TypeApplicationRaw(
+  { args, constr, multiline }: TypeApplicationRawProps,
+): Expression {
+  return (
+    <>
+      <exps x={constr} />
+      <Delimited
+        c={["<", ">"]}
+        content={args}
+        multiline={multiline}
+        separator=","
+      />
+    </>
+  );
+}
+
+export type TypeApplicationProps = {
+  /**
+   * The DefRef id of the type constructor.
+   */
+  constr: string;
+  /**
+   * The sequence of argument types.
+   */
+  args: Expression[];
+  /**
+   * Whether to render the args one argument per line.
+   */
+  multiline?: boolean;
+};
+
+/**
+ * A type application for a type constructor given by a DefRef id.
+ */
+export function TypeApplication(
+  { args, constr, multiline }: TypeApplicationProps,
+): Expression {
+  return TypeApplicationRaw({ args, constr: <R n={constr} />, multiline });
+}
+
+/**
+ * A type annotation.
+ */
+export function TypeAnnotation(
+  { exp, type }: { exp: Expressions; type: Expressions },
+): Expression {
+  return (
+    <>
+      {exp}
+      <Deemph>:</Deemph>
+      {` `}
+      {type}
+    </>
+  );
 }
 
 // export type PseudocodeConfig = {

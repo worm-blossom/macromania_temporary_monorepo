@@ -57,7 +57,7 @@ const [
   getPseudocodeConfig,
   ConfigPseudocode,
 ] = createConfigOptions<PseudocodeConfig, PseudocodeConfig>(
-  "ConfigPreviews",
+  "ConfigPseudocode",
   () => ({
     lineNumbering: false,
     cssDeps: [],
