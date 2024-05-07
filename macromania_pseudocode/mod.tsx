@@ -38,6 +38,13 @@ const l = createLogger("LoggerPseudocode");
 const ConfigMacro = l.ConfigMacro;
 export { ConfigMacro as LoggerPseudocode };
 
+/**
+ * Three different styles of rendering delimiters.
+ *
+ * `c` renders C-style delimiters. `python` omits curly braces. `ruby` uses keywords instead of punctuation.
+ */
+export type DelimiterStyle = "c" | "python" | "ruby";
+
 export type PseudocodeConfig = {
   /**
    * Whether to render line numbers. Defaults to `false`.
@@ -51,10 +58,19 @@ export type PseudocodeConfig = {
    * JavaScript dependencies to add to all pages with a `Pseudocode` macro.
    */
   jsDeps?: ScriptDependencyInfo[];
+  /**
+   * How many colors to cycle through for rainbow delimiters.
+   * Defaults to three.
+   */
+  colorsOfTheRainbow?: number;
+  /**
+   * Which delimiter style to use. Defaults to C-style delimiters.
+   */
+  delimiterStyle?: DelimiterStyle;
 };
 
 const [
-  getPseudocodeConfig,
+  getConfig,
   ConfigPseudocode,
 ] = createConfigOptions<PseudocodeConfig, PseudocodeConfig>(
   "ConfigPseudocode",
@@ -62,6 +78,8 @@ const [
     lineNumbering: false,
     cssDeps: [],
     jsDeps: [],
+    colorsOfTheRainbow: 3,
+    delimiterStyle: "c",
   }),
   (oldValue, update) => {
     const newValue = { ...oldValue };
@@ -74,25 +92,33 @@ const [
     if (update.jsDeps !== undefined) {
       newValue.jsDeps = update.jsDeps;
     }
+    if (update.colorsOfTheRainbow !== undefined) {
+      newValue.colorsOfTheRainbow = update.colorsOfTheRainbow;
+    }
+    if (update.delimiterStyle !== undefined) {
+      newValue.delimiterStyle = update.delimiterStyle;
+    }
 
     return newValue;
   },
 );
 export { ConfigPseudocode };
 
-type PeudocodeState = {
+type State = {
   lineNumber: number;
   indentation: number;
   showLineNumbers: boolean;
   n: string;
+  rainbowCount: number;
 };
 
-const [getPseudocodeState, setPseudocodeState] = createSubstate<PeudocodeState>(
+const [getState, _setState] = createSubstate<State>(
   () => ({
     lineNumber: 1,
     indentation: 0,
     showLineNumbers: false, // Initial value is ignored, this is overwritten by every Pseudocode macro.
     n: "",
+    rainbowCount: 0,
   }),
 );
 
@@ -130,13 +156,13 @@ export function Pseudocode(
   return (
     <impure
       fun={(ctx) => {
-        const config = getPseudocodeConfig(ctx);
+        const config = getConfig(ctx);
 
         const doNumber = lineNumbering === undefined
-          ? getPseudocodeConfig(ctx).lineNumbering!
+          ? getConfig(ctx).lineNumbering!
           : lineNumbering;
 
-        const state = getPseudocodeState(ctx);
+        const state = getState(ctx);
         state.showLineNumbers = doNumber;
 
         if (!noLineNumberReset) {
@@ -148,7 +174,7 @@ export function Pseudocode(
         return (
           <PreviewScope>
             <omnomnom>
-              <Def n={n} noHighlight refData={{pseudocode: n}} />
+              <Def n={n} noHighlight refData={{ pseudocode: n }} />
             </omnomnom>
             <impure
               fun={(ctx) => {
@@ -183,7 +209,7 @@ function StartLoc(): Expression {
   return (
     <impure
       fun={(ctx) => {
-        const state = getPseudocodeState(ctx);
+        const state = getState(ctx);
 
         const gutter = (
           <Div
@@ -209,7 +235,7 @@ function StartLoc(): Expression {
         return (
           <>
             {gutter}
-            {`<div class="locContent">`}
+            {`<div class="locContent"><div>`}
             <exps x={indents} />
           </>
         );
@@ -221,19 +247,53 @@ function StartLoc(): Expression {
 /**
  * Terminate a line of code that was opened with the `<StartLoc/>` macro.
  */
-function EndLoc(): Expression {
-  return `</div>`;
+function EndLoc(
+  { comment, fullLineComment }: {
+    comment?: Expressions;
+    fullLineComment?: boolean;
+  },
+): Expression {
+  return (
+    <>
+      {"</div>"}
+      {comment === undefined
+        ? ""
+        : (
+          <Div clazz={fullLineComment ? "lineComment" : "comment"}>
+            <exps x={comment} />
+          </Div>
+        )}
+      {`</div>`}
+    </>
+  );
 }
+
+export type LocProps = {
+  /**
+   * The content of the line of code.
+   */
+  children?: Expressions;
+  /**
+   * An optional comment for the line.
+   */
+  comment?: Expressions;
+  /**
+   * Whether the comment is the only content of the line.
+   */
+  fullLineComment?: boolean;
+};
 
 /**
  * Create a self-contained line of code in a `Pseudocode` block.
  */
-export function Loc({ children }: { children?: Expressions }): Expression {
+export function Loc(
+  { children, comment, fullLineComment }: LocProps,
+): Expression {
   return (
     <>
       <StartLoc />
       <exps x={children} />
-      <EndLoc />
+      <EndLoc comment={comment} fullLineComment={fullLineComment} />
     </>
   );
 }
@@ -241,16 +301,31 @@ export function Loc({ children }: { children?: Expressions }): Expression {
 /**
  * Splice up a `<Loc>`, allowing you to add new lines "inside".
  * Everything up to this macro becomes a line, and everything after this macro becomes a line.
+ *
+ * If you supply a comment, it belongs to the line prior to what is spliced in.
  */
 export function SpliceLoc(
-  { children }: { children?: Expressions },
+  { children, comment }: LocProps,
 ): Expression {
   return (
     <>
-      <EndLoc />
+      <EndLoc comment={comment} />
       <exps x={children} />
       <StartLoc />
     </>
+  );
+}
+
+/**
+ * An inline comment.
+ */
+export function InlineComment(
+  { children }: { children: Expressions },
+): Expression {
+  return (
+    <Span clazz="inlineComment">
+      <exps x={children} />
+    </Span>
   );
 }
 
@@ -261,11 +336,11 @@ export function Indent({ children }: { children?: Expressions }): Expression {
   return (
     <lifecycle
       pre={(ctx) => {
-        const state = getPseudocodeState(ctx);
+        const state = getState(ctx);
         state.indentation += 1;
       }}
       post={(ctx) => {
-        const state = getPseudocodeState(ctx);
+        const state = getState(ctx);
         state.indentation -= 1;
       }}
     >
@@ -316,17 +391,17 @@ function linesValidateAndFindFirst(ctx: Context, lines: Lines): number {
 
 /**
  * Encode lines as a string that can be used as a url parameter.
- * The encoding is simple: if there are many lines, separate them with `a` characters.
- * Encode an individual line as a decimal int, and a sequence as two decimal ints, separated by the `b` character.
+ * The encoding is simple: if there are many lines, separate them with `.` characters.
+ * Encode an individual line as a decimal int, and a sequence as two decimal ints, separated by the `-` character.
  */
 function encodeLines(lines: Lines): string {
   if (typeof lines === "number") {
     return `${lines}`;
   } else if (Array.isArray(lines)) {
-    return `${lines[0]}b${lines[1]}`;
+    return `${lines[0]}-${lines[1]}`;
   } else {
     const innerEncoded = lines.many.map(encodeLines);
-    return innerEncoded.join("a");
+    return innerEncoded.join(".");
   }
 }
 
@@ -369,7 +444,7 @@ export function RefLoc(
             replacementId={lineId(n, firstLine)}
             queryParams={[paramString, ["hlPseudocode", n]]}
             noPreview={noPreview}
-            extraData={{hllines: encodedLines}}
+            extraData={{ hllines: encodedLines }}
           >
             <exps x={children} />
           </R>
@@ -386,7 +461,319 @@ function lineId(n: string, line: number): string {
 /**
  * Return which css and js dependencies should be added to every html page with pseudocode.
  */
-export function exposeCssAndJsDependencies(ctx: Context): [StylesheetDependencyInfo[], ScriptDependencyInfo[]] {
-  const config = getPseudocodeConfig(ctx);
+export function exposeCssAndJsDependencies(
+  ctx: Context,
+): [StylesheetDependencyInfo[], ScriptDependencyInfo[]] {
+  const config = getConfig(ctx);
   return [config.cssDeps ?? [], config.jsDeps ?? []];
+}
+
+export type DelimiterProps = {
+  /**
+   * The opening and the closing delimiter.
+   */
+  delims: [Expressions, Expressions];
+  /**
+   * Exclude the delimiters from rainbowowing, i.e., do not color them according to nesting depth.
+   */
+  noRainbow?: boolean;
+  /**
+   * The content to wrap in the delimiters.
+   */
+  children?: Expressions;
+};
+
+/**
+ * Wrap the children between two delimiters.
+ */
+export function Delimiters(
+  { delims, children, noRainbow }: DelimiterProps,
+): Expression {
+  if (noRainbow) {
+    return (
+      <>
+        <Span clazz={["open"]}>
+          <exps x={delims[0]} />
+        </Span>
+        <exps x={children} />
+        <Span clazz={["close"]}>
+          <exps x={delims[1]} />
+        </Span>
+      </>
+    );
+  }
+
+  return (
+    <lifecycle
+      pre={(ctx) => {
+        const state = getState(ctx);
+        const config = getConfig(ctx);
+
+        state.rainbowCount = (state.rainbowCount + 1) %
+          config.colorsOfTheRainbow!;
+      }}
+      post={(ctx) => {
+        const state = getState(ctx);
+        const config = getConfig(ctx);
+
+        state.rainbowCount = (state.rainbowCount - 1) %
+          config.colorsOfTheRainbow!;
+      }}
+    >
+      <impure
+        fun={(ctx) => {
+          const state = getState(ctx);
+
+          const clazz = `rb${state.rainbowCount}`;
+
+          return (
+            <>
+              <Span clazz={[clazz, "open"]}>
+                <exps x={delims[0]} />
+              </Span>
+              <exps x={children} />
+              <Span clazz={[clazz, "close"]}>
+                <exps x={delims[1]} />
+              </Span>
+            </>
+          );
+        }}
+      />
+    </lifecycle>
+  );
+}
+
+/**
+ * Information to render delimiters in all supported `DelimiterStyle`s.
+ */
+export type ConfigurableDelimiters = {
+  /**
+   * The default delimiters, as rendered in C-style pseudocode.
+   */
+  c: [Expressions, Expressions];
+  /**
+   * Whether to omit these delimiters in Python-style pseudocode.
+   * Defaults to false.
+   */
+  pythonSkip?: boolean;
+  /**
+   * Alternate delimiters to use in Ruby-style pseudocode.
+   * Defaults to undefined, rendering the same as in c, even for ruby.
+   */
+  ruby?: [Expression, Expression];
+};
+
+/**
+ * Information about optionally adding a comment to a segment of code.
+ *
+ * Generic about how exactly the segment of code is described.
+ */
+export type MaybeCommented<T> = T | {
+  commented: {
+    segment: T;
+    comment: Expressions;
+    /**
+     * If rendered as multiline, should the comment receive its own line?
+     */
+    dedicatedLine?: boolean;
+  };
+};
+
+/**
+ * Map an array of `MaybeCommented<From>` to an array of `MaybeCommented<To>` by transforming the code segments of type `From` into code segments of type `To` via the `fun` function.
+ */
+export function mapMaybeCommented<From, To>(
+  arr: MaybeCommented<From>[],
+  fun: (original: From) => To,
+): MaybeCommented<To>[] {
+  return arr.map((item) => {
+    if (typeof item === "object" && item !== null && "commented" in item) {
+      return {
+        commented: { ...item.commented, segment: fun(item.commented.segment) },
+      };
+    } else {
+      return fun(item);
+    }
+  });
+}
+
+/**
+ * Props for the `Delimited` macro.
+ */
+export type DelimitedProps = ConfigurableDelimiters & {
+  /**
+   * The code to place between the delimiters.
+   */
+  content: MaybeCommented<Expressions>[];
+  /**
+   * Render the content Expressions in their own line each, or within a single, shared line of code.
+   */
+  multiline?: boolean;
+  /**
+   * Optional separator to place between the content Expressions.
+   */
+  separator?: Expressions;
+  /**
+   * Exclude the delimiters from rainbowowing, i.e., do not color them according to nesting depth.
+   */
+  noRainbow?: boolean;
+};
+
+/**
+ * Render some content Expressions: wrapped in configurable delimiters,
+ * optionally separated, and optionally rendered in their own line each.
+ */
+export function Delimited(
+  { content, multiline, separator, c, pythonSkip, ruby, noRainbow }:
+    DelimitedProps,
+): Expression {
+  return (
+    <impure
+      fun={(ctx) => {
+        const config = getConfig(ctx);
+        const style = config.delimiterStyle;
+
+        let open = c[0];
+        let close = c[1];
+
+        if (style === "ruby" && ruby !== undefined) {
+          open = ruby[0];
+          close = ruby[1];
+
+          if (!multiline) {
+            open = <>{ruby[0]}{" "}</>;
+          }
+        }
+
+        const noDelims = multiline && (style === "python") && pythonSkip;
+
+        const separatedContent: Expressions = [];
+        for (let i = 0; i < content.length; i++) {
+          let exps: Expressions;
+          let comment: Expressions | undefined = undefined;
+          let commentDedicatedLine = false;
+
+          const currentContent = content[i];
+          if (
+            typeof currentContent === "object" && "commented" in currentContent
+          ) {
+            exps = currentContent.commented.segment;
+            comment = currentContent.commented.comment;
+            commentDedicatedLine = !!currentContent.commented.dedicatedLine;
+          } else {
+            exps = currentContent;
+          }
+
+          const addSeparator = (separator !== undefined) &&
+            (multiline || (i + 1 < content.length));
+
+          const stuffToRender: Expression[] = [<exps x={exps} />];
+
+          if (!multiline && comment !== undefined) {
+            stuffToRender.push(
+              <>
+                {" "}
+                <InlineComment>
+                  <exps x={comment} />
+                </InlineComment>
+              </>,
+            );
+          }
+
+          if (addSeparator) {
+            stuffToRender.push(
+              <>
+                <Deemph>
+                  <exps x={separator} />
+                </Deemph>
+                {multiline ? "" : " "}
+              </>,
+            );
+          } else if (!multiline && style === "ruby" && ruby !== undefined) {
+            stuffToRender.push(
+              <>
+                {" "}
+              </>,
+            );
+          }
+
+          if (multiline) {
+            if (comment !== undefined && commentDedicatedLine) {
+              separatedContent.push(
+                <CommentLine>
+                  <exps x={comment} />
+                </CommentLine>,
+              );
+            }
+
+            separatedContent.push(
+              <Loc
+                comment={comment !== undefined && !commentDedicatedLine
+                  ? comment
+                  : undefined}
+              >
+                <exps x={stuffToRender} />
+              </Loc>,
+            );
+          } else {
+            separatedContent.push(<exps x={stuffToRender} />);
+          }
+        }
+
+        const betweenDelimiters = multiline
+          ? (
+            <SpliceLoc>
+              <Indent>
+                <exps x={separatedContent} />
+              </Indent>
+            </SpliceLoc>
+          )
+          : <exps x={separatedContent} />;
+
+        return noDelims
+          ? betweenDelimiters
+          : (
+            <Delimiters delims={[open, close]} noRainbow={noRainbow}>
+              {betweenDelimiters}
+            </Delimiters>
+          );
+      }}
+    />
+  );
+}
+
+/**
+ * Render a full-line comment.
+ * Provides its own `<Loc>` invocation.
+ */
+export function CommentLine(
+  { children }: { children?: Expressions },
+): Expression {
+  return <Loc comment={<exps x={children} />} fullLineComment />;
+}
+
+/**
+ * Render a keyword.
+ */
+export function Keyword(
+  { children }: { children: Expressions },
+): Expression {
+  return (
+    <Span clazz="kw">
+      <exps x={children} />
+    </Span>
+  );
+}
+
+/**
+ * Visually deemphasize a part of some pseudocode.
+ */
+export function Deemph(
+  { children }: { children: Expressions },
+): Expression {
+  return (
+    <Span clazz="deemph">
+      <exps x={children} />
+    </Span>
+  );
 }

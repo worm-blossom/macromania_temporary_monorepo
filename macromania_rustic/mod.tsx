@@ -1,5 +1,6 @@
 import { expandEmbeddedImportMap } from "https://deno.land/x/esbuild_deno_loader@0.9.0/src/shared.ts";
 import {
+  CommentLine,
   Deemph,
   Def,
   Delimited,
@@ -8,8 +9,11 @@ import {
   Div,
   exposeCssAndJsDependencies,
   Indent,
+  InlineComment,
   Keyword,
   Loc,
+  mapMaybeCommented,
+  MaybeCommented,
   PreviewScope,
   R,
 } from "../mod.tsx";
@@ -89,32 +93,36 @@ const [getRusticState, setRusticState] = createSubstate<
 );
 
 function rusticDef(props: DefProps, extraClass: string): Expression {
-  return <impure fun={(ctx) => {
-    const [cssDeps, jsDeps] = exposeCssAndJsDependencies(ctx);
+  return (
+    <impure
+      fun={(ctx) => {
+        const [cssDeps, jsDeps] = exposeCssAndJsDependencies(ctx);
 
-    const defClass: Expression[] = ["rustic", extraClass];
-    if (Array.isArray(props.defClass)) {
-      props.defClass.forEach((clazz) => defClass.push(clazz));
-    } else if (props.defClass !== undefined) {
-      defClass.push(props.defClass);
-    }
-  
-    const refClass: Expression[] = ["rustic", extraClass];
-    if (Array.isArray(props.refClass)) {
-      props.refClass.forEach((clazz) => refClass.push(clazz));
-    } else if (props.refClass !== undefined) {
-      refClass.push(props.refClass);
-    }
+        const defClass: Expression[] = ["rustic", extraClass];
+        if (Array.isArray(props.defClass)) {
+          props.defClass.forEach((clazz) => defClass.push(clazz));
+        } else if (props.defClass !== undefined) {
+          defClass.push(props.defClass);
+        }
 
-    for (const dep of cssDeps) {
-      dependencyCss(ctx, dep);
-    }
-    for (const dep of jsDeps) {
-      dependencyJs(ctx, dep);
-    }
-  
-    return Def({ ...props, defClass, refClass });
-  }}/>;
+        const refClass: Expression[] = ["rustic", extraClass];
+        if (Array.isArray(props.refClass)) {
+          props.refClass.forEach((clazz) => refClass.push(clazz));
+        } else if (props.refClass !== undefined) {
+          refClass.push(props.refClass);
+        }
+
+        for (const dep of cssDeps) {
+          dependencyCss(ctx, dep);
+        }
+        for (const dep of jsDeps) {
+          dependencyJs(ctx, dep);
+        }
+
+        return Def({ ...props, defClass, refClass });
+      }}
+    />
+  );
 }
 
 /**
@@ -170,11 +178,16 @@ export function Parens({ children }: { children?: Expressions }): Expression {
   );
 }
 
+export type TupleTypeProps = {
+  types?: MaybeCommented<Expressions>[];
+  multiline?: boolean;
+};
+
 /**
  * An anonymous tuple type, i.e., an anonymous product.
  */
 export function TupleType(
-  { types, multiline }: { types?: Expressions[]; multiline?: boolean },
+  { types, multiline }: TupleTypeProps,
 ): Expression {
   return (
     <Delimited
@@ -190,42 +203,97 @@ export function TupleType(
  * An anonymous choice type, i.e., an anonymous sum.
  */
 export function ChoiceType(
-  { types, multiline }: { types: Expressions[]; multiline?: boolean },
+  { types, multiline }: {
+    types: MaybeCommented<Expressions>[];
+    multiline?: boolean;
+  },
 ): Expression {
   const separatedContent: Expressions = [];
   for (let i = 0; i < types.length; i++) {
+    let exps: Expressions;
+    let comment: Expressions | undefined = undefined;
+    let commentDedicatedLine = false;
+
+    const currentType = types[i];
+    if (
+      typeof currentType === "object" && "commented" in currentType
+    ) {
+      exps = currentType.commented.segment;
+      comment = currentType.commented.comment;
+      commentDedicatedLine = !!currentType.commented.dedicatedLine;
+    } else {
+      exps = currentType;
+    }
+
     const addPipe = multiline || (i > 0);
 
-    if (addPipe) {
-      separatedContent.push(
+    const stuffToRender: Expression[] = addPipe
+      ? [
         <>
-          {(!multiline && (i !== 0)) ? " " : ""}
-          <Deemph>|</Deemph> <exps x={types[i]} />
+          <Deemph>|</Deemph>
+          {" "}
         </>,
+      ]
+      : [];
+
+    stuffToRender.push(<exps x={exps} />);
+
+    if (!multiline) {
+      stuffToRender.push(" ");
+
+      if (comment !== undefined) {
+        stuffToRender.push(
+          <>
+            <InlineComment>
+              <exps x={comment} />
+            </InlineComment>
+            {" "}
+          </>,
+        );
+      }
+    }
+
+    if (multiline) {
+      if (comment !== undefined && commentDedicatedLine) {
+        separatedContent.push(
+          <CommentLine>
+            <exps x={comment} />
+          </CommentLine>,
+        );
+      }
+
+      separatedContent.push(
+        <Loc
+          comment={comment !== undefined && !commentDedicatedLine
+            ? comment
+            : undefined}
+        >
+          <exps x={stuffToRender} />
+        </Loc>,
       );
     } else {
-      separatedContent.push(<exps x={types[i]} />);
+      separatedContent.push(<exps x={stuffToRender} />);
     }
   }
 
-  return multiline
+  const betweenDelimiters = multiline
     ? (
       <SpliceLoc>
         <Indent>
-          <exps
-            x={separatedContent.map((exp) => <Loc>{exp}</Loc>)}
-          />
+          <exps x={separatedContent} />
         </Indent>
       </SpliceLoc>
     )
     : <exps x={separatedContent} />;
+
+  return betweenDelimiters;
 }
 
 export type FunctionTypeProps = {
   /**
    * The sequence of argument types.
    */
-  args: Expression[];
+  args: MaybeCommented<Expression>[];
   /**
    * The return type.
    */
@@ -262,7 +330,7 @@ export type FunctionTypeNamedProps = {
   /**
    * The sequence of argument names and their types (name first, unique id second, type third).
    */
-  args: [string, string, Expression][];
+  args: MaybeCommented<[string, string, Expression]>[];
   /**
    * The return type.
    */
@@ -281,7 +349,7 @@ export function FunctionTypeNamed(
 ): Expression {
   return (
     <FunctionType
-      args={args.map(([id, n, type]) => (
+      args={mapMaybeCommented(args, ([id, n, type]) => (
         <TypeAnnotation
           type={type}
         >
@@ -396,7 +464,7 @@ export type TypeApplicationRawProps = {
   /**
    * The sequence of argument types.
    */
-  args: Expression[];
+  args: MaybeCommented<Expression>[];
   /**
    * Whether to render the args one argument per line.
    */
@@ -430,7 +498,7 @@ export type TypeApplicationProps = {
   /**
    * The sequence of argument types.
    */
-  args: Expression[];
+  args: MaybeCommented<Expression>[];
   /**
    * Whether to render the args one argument per line.
    */
@@ -516,7 +584,7 @@ export type TupleProps = {
   /**
    * The field expressions.
    */
-  fields?: Expressions[];
+  fields?: MaybeCommented<Expressions>[];
 };
 
 /**
@@ -553,7 +621,7 @@ export type TupleStructProps = {
   /**
    * The field expressions.
    */
-  fields?: Expressions[];
+  fields?: MaybeCommented<Expressions>[];
 };
 
 /**
@@ -623,7 +691,7 @@ export type RecordProps = {
   /**
    * The field names and the associated expressions.
    */
-  fields?: [Expressions, Expression][];
+  fields?: MaybeCommented<[Expressions, Expression]>[];
 };
 
 /**
@@ -645,7 +713,7 @@ export function Record(
         pythonSkip
         multiline={multiline}
         separator=","
-        content={fields.map(([field, exp]) => (
+        content={mapMaybeCommented(fields, ([field, exp]) => (
           <>
             <exps x={field} />
             <Deemph>:</Deemph> <exps x={exp} />
@@ -668,7 +736,7 @@ export type StructProps = {
   /**
    * The field names and the associated expressions.
    */
-  fields?: [string, Expression][];
+  fields?: MaybeCommented<[string, Expression]>[];
 };
 
 /**
@@ -681,7 +749,10 @@ export function Struct(
     <Record
       name={<R n={name} />}
       multiline={multiline}
-      fields={fields.map(([field, exp]) => [<R n={field} />, exp])}
+      fields={mapMaybeCommented(
+        fields,
+        ([field, exp]) => [<R n={field} />, exp],
+      )}
     />
   );
 }
@@ -703,7 +774,7 @@ export type AccessStructProps = {
 export function AccessStruct(
   { children, field }: AccessStructProps,
 ): Expression {
-  return <Access children={children} at={<R n={field}/>} />;
+  return <Access children={children} at={<R n={field} />} />;
 }
 
 export type EnumLiteralRawProps = {
@@ -725,7 +796,9 @@ export function EnumLiteralRaw(
 ): Expression {
   return (
     <>
-      <exps x={name} /><Deemph>::</Deemph><exps x={children} />
+      <exps x={name} />
+      <Deemph>::</Deemph>
+      <exps x={children} />
     </>
   );
 }

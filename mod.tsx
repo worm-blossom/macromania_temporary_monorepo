@@ -17,5 +17,4 @@ export * from "./macromania_outfs/mod.tsx";
 export * from "./macromania_previews/mod.tsx";
 export * from "./macromania_webserverroot/mod.tsx";
 export * from "./macromania_pseudocode/mod.tsx";
-export * from "./macromania_structuredcode/mod.tsx";
 export * from "./macromania_rustic/mod.tsx";
