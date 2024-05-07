@@ -481,7 +481,7 @@ export function TypeApplicationRaw(
     <>
       <exps x={constr} />
       <Delimited
-        c={["<", ">"]}
+        c={[<EscapeHtml>{"<"}</EscapeHtml>, <EscapeHtml>{">"}</EscapeHtml>]}
         content={args}
         multiline={multiline}
         separator=","
@@ -821,4 +821,401 @@ export function EnumLiteral(
   { name, children }: EnumLiteralProps,
 ): Expression {
   return <EnumLiteralRaw name={<R n={name} />} children={children} />;
+}
+
+export type IsVariantProps = {
+  /**
+   * The enum variant to test for.
+   */
+  variant: Expressions;
+  /**
+   * The expression to test.
+   */
+  children: Expressions;
+};
+
+/**
+ * Testing whether an expression evaluates to a value of a certain enum variant.
+ */
+export function IsVariant({ variant, children }: IsVariantProps): Expression {
+  return (
+    <>
+      <exps x={children} /> <Keyword>is</Keyword> <exps x={variant} />
+    </>
+  );
+}
+
+export type FunctionLiteralUntypedProps = {
+  /**
+   * The sequence of argument names (name first, unique id second).
+   */
+  args: MaybeCommented<[string, string]>[];
+  /**
+   * Whether to render the argument types one type per line.
+   */
+  multilineArgs?: boolean;
+  /**
+   * The function body.
+   */
+  body: Expressions[];
+  /**
+   * Whether the body should be inline instead of an indented block.
+   */
+  singleLineBody?: boolean;
+};
+
+/**
+ * A function literal (aka anonymous function, lambda expression, closure) without type annotations.
+ */
+export function FunctionLiteralUntyped(
+  { args, multilineArgs, body, singleLineBody }: FunctionLiteralUntypedProps,
+): Expression {
+  return (
+    <>
+      <Delimited
+        c={["(", ")"]}
+        content={mapMaybeCommented(
+          args,
+          ([id, n]) => <RenderFreshValue id={[id, n]} />,
+        )}
+        multiline={multilineArgs}
+        separator=","
+      />
+      {` `}
+      <Deemph>{`->`}</Deemph>
+      {` `}
+      <Delimited
+        c={["{", "}"]}
+        pythonSkip
+        ruby={["", "end"]}
+        content={body}
+        multiline={!singleLineBody}
+      />
+    </>
+  );
+}
+
+export type FunctionLiteralProps = {
+  /**
+   * The sequence of argument names (name first, unique id second).
+   */
+  args: MaybeCommented<[string, string, Expression]>[];
+  /**
+   * Whether to render the argument types one type per line.
+   */
+  multilineArgs?: boolean;
+  /**
+   * The return type.
+   */
+  ret?: Expressions;
+  /**
+   * The function body.
+   */
+  body: Expressions[];
+  /**
+   * Whether the body should be inline instead of an indented block.
+   */
+  singleLineBody?: boolean;
+};
+
+/**
+ * A function literal (aka anonymous function, lambda expression, closure) with type annotations.
+ */
+export function FunctionLiteral(
+  { args, multilineArgs, body, singleLineBody, ret }: FunctionLiteralProps,
+): Expression {
+  return (
+    <>
+      <Delimited
+        c={["(", ")"]}
+        content={mapMaybeCommented(
+          args,
+          ([id, n, ty]) => {
+            return (
+              <TypeAnnotation
+                type={ty}
+              >
+                <RenderFreshValue id={[id, n]} />
+              </TypeAnnotation>
+            );
+          },
+        )}
+        multiline={multilineArgs}
+        separator=","
+      />
+      {` `}
+      <Deemph>{`->`}</Deemph>
+      {` `}
+      {ret === undefined ? "" : (
+        <>
+          <exps x={ret} />
+          {" "}
+        </>
+      )}
+      <Delimited
+        c={["{", "}"]}
+        pythonSkip
+        ruby={["", "end"]}
+        content={body}
+        multiline={!singleLineBody}
+      />
+    </>
+  );
+}
+
+export type ApplicationRawProps = {
+  /**
+   * Function to call.
+   */
+  fun: Expressions;
+  /**
+   * Optional generics.
+   */
+  generics?: MaybeCommented<Expression>[];
+  /**
+   * Whether to render the generics one type per line.
+   */
+  multilineGenerics?: boolean;
+  /**
+   * The argument expressions
+   */
+  args?: MaybeCommented<Expression>[];
+  /**
+   * Whether to render the arguments one expression per line.
+   */
+  multilineArgs?: boolean;
+};
+
+/**
+ * A type application for an arbitrary type constructor expression.
+ */
+export function ApplicationRaw(
+  { fun, generics, multilineGenerics, args = [], multilineArgs }:
+    ApplicationRawProps,
+): Expression {
+  return (
+    <>
+      <exps x={fun} />
+      {generics === undefined ? "" : (
+        <Delimited
+          c={[<EscapeHtml>{"<"}</EscapeHtml>, <EscapeHtml>{">"}</EscapeHtml>]}
+          content={generics}
+          multiline={multilineGenerics}
+          separator=","
+        />
+      )}
+      <Delimited
+        c={["(", ")"]}
+        content={args}
+        multiline={multilineArgs}
+        separator=","
+      />
+    </>
+  );
+}
+
+export type ApplicationProps = {
+  /**
+   * DefRef id of the function to call.
+   */
+  fun: string;
+  /**
+   * Optional generics.
+   */
+  generics?: MaybeCommented<Expression>[];
+  /**
+   * Whether to render the generics one type per line.
+   */
+  multilineGenerics?: boolean;
+  /**
+   * The argument expressions
+   */
+  args?: MaybeCommented<Expression>[];
+  /**
+   * Whether to render the arguments one expression per line.
+   */
+  multilineArgs?: boolean;
+};
+
+export function Application(
+  { fun, generics, multilineGenerics, args = [], multilineArgs }:
+    ApplicationProps,
+): Expression {
+  return ApplicationRaw({
+    fun: <R n={fun} />,
+    generics,
+    multilineGenerics,
+    args,
+    multilineArgs,
+  });
+}
+
+export type ArrayLiteralProps = {
+  /**
+   * Whether to give each field its on line of code.
+   */
+  multiline?: boolean;
+  /**
+   * The field expressions.
+   */
+  fields?: MaybeCommented<Expressions>[];
+};
+
+/**
+ * An array literal, listing all values explicitly.
+ */
+export function ArrayLiteral(
+  { fields = [], multiline }: ArrayLiteralProps,
+): Expression {
+  return (
+    <Delimited
+      c={["[", "]"]}
+      content={fields}
+      multiline={multiline}
+      separator=","
+    />
+  );
+}
+
+export type ArrayRepeatedProps = {
+  /**
+   * The expression to repeat.
+   */
+  children: Expressions;
+  /**
+   * The number of repititions
+   */
+  repetitions: Expressions;
+};
+
+/**
+ * An array literal, listing all values explicitly.
+ */
+export function ArrayRepeated(
+  { children, repetitions }: ArrayRepeatedProps,
+): Expression {
+  return (
+    <Delimiters delims={["[", "]"]}>
+      <exps x={children} />
+      <Deemph>;</Deemph> <exps x={repetitions} />
+    </Delimiters>
+  );
+}
+
+export type IndexProps = {
+  /**
+   * The expression to access.
+   */
+  children: Expressions;
+  /**
+   * Where to index.
+   */
+  index: Expressions;
+};
+
+/**
+ * Index into an array or slice.
+ */
+export function Index(
+  { children, index }: IndexProps,
+): Expression {
+  return (
+    <>
+      <exps x={children} />
+      <Delimiters delims={["[", "]"]}>
+        <exps x={index} />
+      </Delimiters>
+    </>
+  );
+}
+
+export type ReferenceProps = {
+  /**
+   * The expression of which to take a reference.
+   */
+  children: Expressions;
+  /**
+   * Whether the reference allows mutation, or is writeonly, or full opaque.
+   */
+  mut?: boolean | "writeonly" | "opaque";
+};
+
+/**
+ * Take a reference to a value.
+ */
+export function Reference(
+  { children, mut }: ReferenceProps,
+): Expression {
+  const kw: Expression = mut
+    ? (typeof mut === "boolean"
+      ? <Keyword>mut</Keyword>
+      : <Keyword>{mut}</Keyword>)
+    : "";
+  return (
+    <>
+      <Deemph>&</Deemph>
+      {kw}
+      {kw === "" ? "" : " "}
+      <exps x={children} />
+    </>
+  );
+}
+
+/**
+ * Dereference a value.
+ */
+export function Deref(
+  { children }: { children: Expressions },
+): Expression {
+  return (
+    <>
+      <Deemph>*</Deemph>
+      <exps x={children} />
+    </>
+  );
+}
+
+export type SliceProps = {
+  /**
+   * The expression of which to take a slice.
+   */
+  children: Expressions;
+  /**
+   * Whether the reference allows mutation, or is writeonly, or full opaque.
+   */
+  mut?: boolean | "writeonly" | "opaque";
+  /**
+   * Where should the slice begin?
+   */
+  from?: Expressions;
+  /**
+   * Where should the slice end?
+   */
+  to?: Expressions;
+};
+
+/**
+ * Take a reference to a value.
+ */
+export function Slice(
+  { children, mut, from = "", to = "" }: SliceProps,
+): Expression {
+  const kw: Expression = mut
+    ? (typeof mut === "boolean"
+      ? <Keyword>mut</Keyword>
+      : <Keyword>{mut}</Keyword>)
+    : "";
+  return (
+    <>
+      <Deemph>&</Deemph>
+      {kw}
+      {kw === "" ? "" : " "}
+      <exps x={children} />
+      <Delimiters delims={["[", "]"]}>
+        <exps x={from} />
+        <Deemph>..</Deemph>
+        <exps x={to} />
+      </Delimiters>
+    </>
+  );
 }
