@@ -82,14 +82,14 @@ const [
 export { ConfigRustic };
 
 type RusticState = {
-  rainbowCount: number;
+  previewAnnotation: Expressions | null;
 };
 
-const [getRusticState, setRusticState] = createSubstate<
+const [getState, setRusticState] = createSubstate<
   RusticState
 >(
   () => ({
-    rainbowCount: 0,
+    previewAnnotation: null,
   }),
 );
 
@@ -166,6 +166,13 @@ export function DefFunction(props: DefProps): Expression {
  */
 export function DefInterface(props: DefProps): Expression {
   return rusticDef(props, "interface");
+}
+
+/**
+ * Create a DefRef definition for a type argument.
+ */
+export function DefTypeArg(props: DefProps): Expression {
+  return rusticDef(props, "typeArg");
 }
 
 /**
@@ -292,6 +299,14 @@ export function ChoiceType(
 
 export type FunctionTypeProps = {
   /**
+   * Generic type arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
+  /**
    * The sequence of argument types.
    */
   args: MaybeCommented<Expression>[];
@@ -309,10 +324,11 @@ export type FunctionTypeProps = {
  * A function type.
  */
 export function FunctionType(
-  { args, ret, multiline }: FunctionTypeProps,
+  { args, ret, multiline, generics, multilineGenerics }: FunctionTypeProps,
 ): Expression {
   return (
     <>
+      <RenderTypeArguments args={generics} multiline={multilineGenerics} />
       <Delimited
         c={["(", ")"]}
         content={args}
@@ -328,6 +344,14 @@ export function FunctionType(
 }
 
 export type FunctionTypeNamedProps = {
+  /**
+   * Generic type arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
   /**
    * The sequence of argument names and their types (name first, unique id second, type third).
    */
@@ -346,10 +370,12 @@ export type FunctionTypeNamedProps = {
  * A function type.
  */
 export function FunctionTypeNamed(
-  { args, ret, multiline }: FunctionTypeNamedProps,
+  { args, ret, multiline, generics, multilineGenerics }: FunctionTypeNamedProps,
 ): Expression {
   return (
     <FunctionType
+      generics={generics}
+      multilineGenerics={multilineGenerics}
       args={mapMaybeCommented(args, ([id, n, type]) => (
         <TypeAnnotation
           type={type}
@@ -373,6 +399,48 @@ export function RenderFreshValue(
 ): Expression {
   const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
   return <DefValue n={n} r={r} />;
+}
+
+export function RenderFreshFunction(
+  { id }: { id: FreshId },
+): Expression {
+  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
+  return <DefFunction n={n} r={r} />;
+}
+
+export function RenderFreshType(
+  { id }: { id: FreshId },
+): Expression {
+  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
+  return <DefType n={n} r={r} />;
+}
+
+export function RenderFreshField(
+  { id }: { id: FreshId },
+): Expression {
+  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
+  return <DefField n={n} r={r} />;
+}
+
+export function RenderFreshVariant(
+  { id }: { id: FreshId },
+): Expression {
+  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
+  return <DefVariant n={n} r={r} />;
+}
+
+export function RenderFreshInterface(
+  { id }: { id: FreshId },
+): Expression {
+  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
+  return <DefInterface n={n} r={r} />;
+}
+
+export function RenderFreshTypeArg(
+  { id }: { id: FreshId },
+): Expression {
+  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
+  return <DefTypeArg n={n} r={r} />;
 }
 
 export type ArrayTypeProps = {
@@ -894,6 +962,14 @@ export function FunctionLiteralUntyped(
 
 export type FunctionLiteralProps = {
   /**
+   * Generic type arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
+  /**
    * The sequence of argument names (name first, unique id second).
    */
   args: MaybeCommented<[string, string, Expression]>[];
@@ -919,10 +995,19 @@ export type FunctionLiteralProps = {
  * A function literal (aka anonymous function, lambda expression, closure) with type annotations.
  */
 export function FunctionLiteral(
-  { args, multilineArgs, body, singleLineBody, ret }: FunctionLiteralProps,
+  {
+    generics,
+    multilineGenerics,
+    args,
+    multilineArgs,
+    body,
+    singleLineBody,
+    ret,
+  }: FunctionLiteralProps,
 ): Expression {
   return (
     <>
+      <RenderTypeArguments args={generics} multiline={multilineGenerics} />
       <Delimited
         c={["(", ")"]}
         content={mapMaybeCommented(
@@ -1711,5 +1796,157 @@ export function For(
       singleline={singleline}
       body={body}
     />
+  );
+}
+
+/**
+ * Like a normal <PreviewScope>, but adds state.previewAnnotation at the end of all the previews it creates.
+ */
+function AnnotatedPreviewScope(
+  { children }: { children?: Expressions },
+): Expression {
+  return (
+    <PreviewScope
+      wrapPreviews={(ctx, p) => {
+        const state = getState(ctx);
+        if (state.previewAnnotation === null) {
+          return p;
+        } else {
+          return (
+            <>
+              {p}
+              <Div clazz="previewAnnotation">
+                <exps x={state.previewAnnotation} />
+              </Div>
+            </>
+          );
+        }
+      }}
+    >
+      <exps x={children} />
+    </PreviewScope>
+  );
+}
+
+/**
+ * Set state.previewAnnotation while evaluating the children, reset it afterwards.
+ */
+function SetPreviewAnnotation(
+  { children, annotation }: {
+    children?: Expressions;
+    annotation?: Expressions;
+  },
+): Expression {
+  let previousPreview: Expressions | null = null;
+  return (
+    <lifecycle
+      pre={(ctx) => {
+        const state = getState(ctx);
+        previousPreview = state.previewAnnotation;
+        state.previewAnnotation = annotation === undefined ? null : annotation;
+      }}
+      post={(ctx) => {
+        const state = getState(ctx);
+        state.previewAnnotation = previousPreview;
+      }}
+    >
+      <exps x={children} />
+    </lifecycle>
+  );
+}
+
+/**
+ * A type argument: a type variable identifier, together with optional interfaces that the instantiating types must implement.
+ */
+export type TypeArgument = {
+  /**
+   * The id to use for the type variable.
+   */
+  id: FreshId;
+  /**
+   * Interfaces it must implement.
+   */
+  bounds?: MaybeCommented<Expressions>[];
+  /**
+   * Whether to render each bound on its own line.
+   */
+  multiline?: boolean;
+};
+
+export function RenderTypeArgument({ ty }: { ty: TypeArgument }): Expression {
+  const { id, bounds = [], multiline } = ty;
+
+  return (
+    <>
+      <RenderFreshTypeArg id={id} />
+      {bounds.length === 0 ? "" : (
+        <>
+          <Deemph>:</Deemph>{" "}
+          <Delimited
+            c={["", ""]}
+            separator=" +"
+            multiline={multiline}
+            content={bounds}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+export function RenderTypeArguments(
+  { args = [], multiline }: {
+    args?: MaybeCommented<TypeArgument>[];
+    multiline?: boolean;
+  },
+): Expression {
+  return (
+    <>
+      {args.length === 0 ? "" : (
+        <Delimited
+          multiline={multiline}
+          c={[<EscapeHtml>{"<"}</EscapeHtml>, <EscapeHtml>{">"}</EscapeHtml>]}
+          content={mapMaybeCommented(
+            args,
+            (arg) => <RenderTypeArgument ty={arg} />,
+          )}
+          separator=","
+        />
+      )}
+    </>
+  );
+}
+
+export type TypeProps = {
+  /**
+   * The identifier to define.
+   */
+  lhs: FreshId;
+  /**
+   * Generic arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multiline?: boolean;
+  /**
+   * What to bind to the identifier.
+   */
+  children: Expressions;
+};
+
+/**
+ * A type definition.
+ */
+export function Type(
+  { lhs, generics = [], multiline, children }: TypeProps,
+): Expression {
+  return (
+    <>
+      <Keyword2>type</Keyword2> <RenderFreshType id={lhs} />
+      <RenderTypeArguments args={generics} multiline={multiline} />{" "}
+      <AssignmentOp /> <exps x={children} />
+    </>
   );
 }
