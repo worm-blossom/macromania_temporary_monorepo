@@ -766,6 +766,19 @@ export function Keyword(
 }
 
 /**
+ * Render a keyword, but with different styling than normal keywords.
+ */
+export function Keyword2(
+  { children }: { children: Expressions },
+): Expression {
+  return (
+    <Span clazz="kw2">
+      <exps x={children} />
+    </Span>
+  );
+}
+
+/**
  * Visually deemphasize a part of some pseudocode.
  */
 export function Deemph(
