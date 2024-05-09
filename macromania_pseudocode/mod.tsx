@@ -617,6 +617,18 @@ export type DelimitedProps = ConfigurableDelimiters & {
    * Exclude the delimiters from rainbowowing, i.e., do not color them according to nesting depth.
    */
   noRainbow?: boolean;
+  /**
+   * Map every idividual element of `content` after rendering it.
+   */
+  mapContentIndividual?: (ctx: Context, exps: Expressions) => Expression;
+  /**
+   * Map the full `content` after rendering it.
+   */
+  mapContentCollective?: (ctx: Context, exps: Expressions) => Expression;
+  /**
+   * Don't wrap content with `Loc` macro.
+   */
+  skipWrappingLoc?: boolean;
 };
 
 /**
@@ -624,8 +636,18 @@ export type DelimitedProps = ConfigurableDelimiters & {
  * optionally separated, and optionally rendered in their own line each.
  */
 export function Delimited(
-  { content, multiline, separator, c, pythonSkip, ruby, noRainbow }:
-    DelimitedProps,
+  {
+    content,
+    multiline,
+    separator,
+    c,
+    pythonSkip,
+    ruby,
+    noRainbow,
+    mapContentIndividual = (ctx, exps) => <exps x={exps} />,
+    mapContentCollective = (ctx, exps) => <exps x={exps} />,
+    skipWrappingLoc,
+  }: DelimitedProps,
 ): Expression {
   return (
     <impure
@@ -698,25 +720,33 @@ export function Delimited(
           }
 
           if (multiline) {
+            let commentAndContent: Expression = "";
             if (comment !== undefined && commentDedicatedLine) {
-              separatedContent.push(
+              commentAndContent = (
                 <CommentLine>
                   <exps x={comment} />
-                </CommentLine>,
+                </CommentLine>
               );
             }
 
-            separatedContent.push(
-              <Loc
-                comment={comment !== undefined && !commentDedicatedLine
-                  ? comment
-                  : undefined}
-              >
-                <exps x={stuffToRender} />
-              </Loc>,
+            commentAndContent = (
+              <>
+                {commentAndContent}
+                <Loc
+                  comment={comment !== undefined && !commentDedicatedLine
+                    ? comment
+                    : undefined}
+                >
+                  <exps x={stuffToRender} />
+                </Loc>
+              </>
             );
+
+            separatedContent.push(mapContentIndividual(ctx, commentAndContent));
           } else {
-            separatedContent.push(<exps x={stuffToRender} />);
+            separatedContent.push(
+              mapContentIndividual(ctx, <exps x={stuffToRender} />),
+            );
           }
         }
 
@@ -724,11 +754,11 @@ export function Delimited(
           ? (
             <SpliceLoc>
               <Indent>
-                <exps x={separatedContent} />
+                {mapContentCollective(ctx, <exps x={separatedContent} />)}
               </Indent>
             </SpliceLoc>
           )
-          : <exps x={separatedContent} />;
+          : mapContentCollective(ctx, <exps x={separatedContent} />);
 
         return noDelims
           ? betweenDelimiters

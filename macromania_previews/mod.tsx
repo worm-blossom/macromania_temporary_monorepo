@@ -79,10 +79,6 @@ type PreviewsState = {
    * JavaScript dependencies to add to the previews.
    */
   jsDeps: ScriptDependencyInfo[];
-  /**
-   * A function for wrapping the preview html.
-   */
-  wrapPreviews: (ctx: Context, p: Expression) => Expression;
 };
 
 type PreviewInfo = {
@@ -115,14 +111,20 @@ type PreviewInfo = {
 const [getState, setState] = createSubstate<null | PreviewsState>(() => null);
 
 /**
+ * A stack of wrapper functions. When creating a preview page, pass the preview expression through the last function, the result throught the second-to-last, etc, to generated the final expression that yields the preview page.
+ */
+const [getStateWrapper, setStateWrapper] = createSubstate<
+  ((ctx: Context, p: Expression) => Expression)[]
+>(() => []);
+
+/**
  * Create a preview scope.
  */
 export function PreviewScope(
-  { children, cssDeps, jsDeps, wrapPreviews }: {
+  { children, cssDeps, jsDeps }: {
     children?: Expressions;
     cssDeps?: StylesheetDependencyInfo[];
     jsDeps?: ScriptDependencyInfo[];
-    wrapPreviews?: (ctx: Context, p: Expression) => Expression;
   },
 ): Expression {
   let previousState: null | PreviewsState = null;
@@ -131,7 +133,6 @@ export function PreviewScope(
     previews: new Map(),
     cssDeps: cssDeps ?? [],
     jsDeps: jsDeps ?? [],
-    wrapPreviews: wrapPreviews ?? ((_ctx, p) => p),
   };
 
   function pre(ctx: Context) {
@@ -179,6 +180,12 @@ export function PreviewScope(
 
       const fileName = `${p.name}.html`;
 
+      const wrappers = getStateWrapper(ctx);
+      let finalPreview: Expression = evaled;
+      for (let i = wrappers.length - 1; i >= 0; i--) {
+        finalPreview = wrappers[i](ctx, finalPreview);
+      }
+
       exps.push(
         <omnomnom>
           <Cd path={absoluteOutFsPath(config.previewPath)} create>
@@ -215,7 +222,7 @@ export function PreviewScope(
                     return "";
                   }}
                 />
-                {previewsState.wrapPreviews ? previewsState.wrapPreviews(ctx, evaled) : evaled}
+                {finalPreview}
               </Html5>
             </File>
           </Cd>
@@ -240,7 +247,7 @@ export function PreviewScope(
 /**
  * Register a preview for within the current preview scope.
  * Warns if there is no current preview scope.
- * 
+ *
  * If `weak` is true (it defaults to false), this does nothing if a preview of
  * this name had already been created.
  */
@@ -263,11 +270,15 @@ export function registerPreview(ctx: Context, p: PreviewInfo, weak = false) {
 /**
  * Register a preview for within the current preview scope, return whether
  * there was a surrounding preview scope. Does not log anything.
- * 
+ *
  * If `weak` is true (it defaults to false), this does nothing if a preview of
  * this name had already been created.
  */
-export function tryRegisterPreview(ctx: Context, p: PreviewInfo, weak = false): boolean {
+export function tryRegisterPreview(
+  ctx: Context,
+  p: PreviewInfo,
+  weak = false,
+): boolean {
   const state = getState(ctx);
 
   if (state !== null) {
@@ -397,26 +408,55 @@ export function previewScopeDependencyJs(
 }
 
 /**
- * Add a wrapper function to all preview pages in the current scope.
+ * All previews created as children of this macro apply the wrapper function to determine the final preview page.
  */
-export function previewScopeWrapper(
-  ctx: Context,
-  wrapPreviews: (ctx: Context, p: Expression) => Expression,
-  noWarnIfNoScope = false,
-) {
-  const state = getState(ctx);
+export function PreviewScopePushWrapper(
+  { wrapper, children }: {
+    wrapper: (ctx: Context, exp: Expression) => Expression;
+    children?: Expressions;
+  },
+): Expression {
+  return (
+    <lifecycle
+      pre={(ctx) => {
+        const wrappers = getStateWrapper(ctx);
+        wrappers.push(wrapper);
+      }}
+      post={(ctx) => {
+        const wrappers = getStateWrapper(ctx);
+        wrappers.pop();
+      }}
+    >
+      <exps x={children} />
+    </lifecycle>
+  );
+}
 
-  if (state === null) {
-    if (!noWarnIfNoScope) {
-      l.warn(
-        ctx,
-        `Tried to set the wrapper function of the surrounding preview scope, but there was no surrounding preview scope.`,
-      );
-      l.at(ctx);
-    }
-  } else {
-    state.wrapPreviews = wrapPreviews;
-  }
+/**
+ * All previews created as children of this macro pop the most recently added wrapper function.
+ */
+export function PreviewScopePopWrapper(
+  { children }: {
+    children?: Expressions;
+  },
+): Expression {
+  let old: ((ctx: Context, exp: Expression) => Expression) | undefined = undefined;
+  return (
+    <lifecycle
+      pre={(ctx) => {
+        const wrappers = getStateWrapper(ctx);
+        old = wrappers.pop();
+      }}
+      post={(ctx) => {
+        const wrappers = getStateWrapper(ctx);
+        if (old !== undefined) {
+          wrappers.push(old);
+        }
+      }}
+    >
+      <exps x={children} />
+    </lifecycle>
+  );
 }
 
 export function stylePreviewName(name: string): string {

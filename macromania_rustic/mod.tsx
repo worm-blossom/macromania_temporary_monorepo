@@ -16,6 +16,8 @@ import {
   mapMaybeCommented,
   MaybeCommented,
   PreviewScope,
+  PreviewScopePopWrapper,
+  PreviewScopePushWrapper,
   R,
 } from "../mod.tsx";
 import {
@@ -393,6 +395,14 @@ export function FunctionTypeNamed(
  * The type to indicate fresh ids that should be bound. Use a string if the id itself can be used as a DefRef `n` prop, use a pair of the id first and the desired `n` prop second otherwise.
  */
 export type FreshId = string | [string, string];
+
+function freshIdN(id: FreshId): string {
+  return Array.isArray(id) ? id[1] : id;
+}
+
+function freshIdId(id: FreshId): string {
+  return Array.isArray(id) ? id[0] : id;
+}
 
 export function RenderFreshValue(
   { id }: { id: FreshId },
@@ -1381,9 +1391,9 @@ export type LetProps = {
   /**
    * The identifier to use as the left-hand side of the definition.
    */
-  lhs: FreshId;
+  id: FreshId;
   /**
-   * Whether to prefix the lhs with a `mut` keyword.
+   * Whether to prefix the id with a `mut` keyword.
    */
   mut?: boolean;
   /**
@@ -1400,10 +1410,10 @@ export type LetProps = {
  * Create a local variable.
  */
 export function Let(
-  { children, mut, lhs, type }: LetProps,
+  { children, mut, id, type }: LetProps,
 ): Expression {
   return (
-    <LetRaw mut={mut} lhs={<RenderFreshValue id={lhs} />} type={type}>
+    <LetRaw mut={mut} lhs={<RenderFreshValue id={id} />} type={type}>
       <exps x={children} />
     </LetRaw>
   );
@@ -1445,7 +1455,7 @@ export type AssignProps = {
   /**
    * The DefRef id of the left-hand side of the assignment.
    */
-  lhs: string;
+  id: string;
   /**
    * An optional assignment operator to replace the default `:=` one.
    */
@@ -1460,10 +1470,10 @@ export type AssignProps = {
  * Assign to a variable, identified by its DefRef id.
  */
 export function Assign(
-  { children, lhs, op }: AssignProps,
+  { children, id, op }: AssignProps,
 ): Expression {
   return (
-    <AssignRaw lhs={<R n={lhs} />} op={op}>
+    <AssignRaw lhs={<R n={id} />} op={op}>
       <exps x={children} />
     </AssignRaw>
   );
@@ -1800,62 +1810,6 @@ export function For(
 }
 
 /**
- * Like a normal <PreviewScope>, but adds state.previewAnnotation at the end of all the previews it creates.
- */
-function AnnotatedPreviewScope(
-  { children }: { children?: Expressions },
-): Expression {
-  return (
-    <PreviewScope
-      wrapPreviews={(ctx, p) => {
-        const state = getState(ctx);
-        if (state.previewAnnotation === null) {
-          return p;
-        } else {
-          return (
-            <>
-              {p}
-              <Div clazz="previewAnnotation">
-                <exps x={state.previewAnnotation} />
-              </Div>
-            </>
-          );
-        }
-      }}
-    >
-      <exps x={children} />
-    </PreviewScope>
-  );
-}
-
-/**
- * Set state.previewAnnotation while evaluating the children, reset it afterwards.
- */
-function SetPreviewAnnotation(
-  { children, annotation }: {
-    children?: Expressions;
-    annotation?: Expressions;
-  },
-): Expression {
-  let previousPreview: Expressions | null = null;
-  return (
-    <lifecycle
-      pre={(ctx) => {
-        const state = getState(ctx);
-        previousPreview = state.previewAnnotation;
-        state.previewAnnotation = annotation === undefined ? null : annotation;
-      }}
-      post={(ctx) => {
-        const state = getState(ctx);
-        state.previewAnnotation = previousPreview;
-      }}
-    >
-      <exps x={children} />
-    </lifecycle>
-  );
-}
-
-/**
  * A type argument: a type variable identifier, together with optional interfaces that the instantiating types must implement.
  */
 export type TypeArgument = {
@@ -1917,11 +1871,208 @@ export function RenderTypeArguments(
   );
 }
 
+/**
+ * Like a normal `<PreviewScope>`, but adds state.previewAnnotation at the end of all the previews it creates.
+ */
+function AnnotatedPreviewScope(
+  { children, dedent, loc }: {
+    children?: Expressions;
+    dedent?: number;
+    loc?: boolean;
+  },
+): Expression {
+  return (
+    <PreviewScopePushWrapper
+      wrapper={(ctx, p) => {
+        const state = getState(ctx);
+        const clazz = ["pseudocode"];
+        if (dedent !== undefined && dedent > 0) {
+          clazz.push(`dedent${dedent}`);
+        }
+        let annotatedP: Expression = (
+          <Code clazz={clazz}>{loc ? <Loc>{p}</Loc> : p}</Code>
+        );
+
+        if (state.previewAnnotation !== null) {
+          annotatedP = (
+            <>
+              {annotatedP}
+              <Div clazz="previewAnnotation">
+                <exps x={state.previewAnnotation} />
+              </Div>
+            </>
+          );
+        }
+
+        return annotatedP;
+      }}
+    >
+      <PreviewScope>
+        <exps x={children} />
+      </PreviewScope>
+    </PreviewScopePushWrapper>
+  );
+}
+
+/**
+ * Set state.previewAnnotation while evaluating the children, reset it afterwards.
+ */
+function SetPreviewAnnotation(
+  { children, annotation }: {
+    children?: Expressions;
+    annotation?: Expressions;
+  },
+): Expression {
+  let previousPreview: Expressions | null = null;
+  return (
+    <lifecycle
+      pre={(ctx) => {
+        const state = getState(ctx);
+        previousPreview = state.previewAnnotation;
+        state.previewAnnotation = annotation === undefined ? null : annotation;
+      }}
+      post={(ctx) => {
+        const state = getState(ctx);
+        state.previewAnnotation = previousPreview;
+      }}
+    >
+      <exps x={children} />
+    </lifecycle>
+  );
+}
+
+type ItemProps = {
+  /**
+   * The identifier of the item.
+   */
+  id: FreshId;
+  /**
+   * A doc comment for the item as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * Generic arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
+  /**
+   * The keyword to introduce the item.
+   */
+  kw?: Expressions;
+  /**
+   * The macro to use to render the fresh item identifier.
+   */
+  idRenderer: (props: { id: FreshId }) => Expression;
+  /**
+   * Preview annotation to set for all defs inside the item.
+   */
+  previewAnnotation?: Expressions;
+  /**
+   * Optionally map the rendered id.
+   */
+  mapId?: (ctx: Context, exp: Expression) => Expression;
+  /**
+   * Anything that comes after the space after the item id (and the generics, if any).
+   */
+  children?: Expressions;
+  /**
+   * Do not wrap the item in an Loc macro.
+   */
+  noLoc?: boolean;
+  /**
+   * How far to dedent the preview scope created by this item.
+   */
+  dedent?: number;
+  /**
+   * Do not createa  preview scope for this item.
+   */
+  noPreviewScope?: boolean;
+};
+
+function Item(
+  {
+    id,
+    generics = [],
+    multilineGenerics,
+    comment,
+    kw,
+    mapId,
+    idRenderer,
+    previewAnnotation,
+    children,
+    noLoc,
+    dedent,
+    noPreviewScope,
+  }: ItemProps,
+): Expression {
+  const setPreviewAnnotation = (children: Expressions) => {
+    if (previewAnnotation === undefined) {
+      return <exps x={children} />;
+    } else {
+      return (
+        <SetPreviewAnnotation
+          annotation={previewAnnotation}
+        >
+          <exps x={children} />
+        </SetPreviewAnnotation>
+      );
+    }
+  };
+
+  const wrapWithLoc = (exp: Expression) => <>{noLoc ? exp : <Loc>{exp}</Loc>}
+  </>;
+  const wrapWithPreviewScope = (exp: Expression) =>
+    noPreviewScope ? exp : (
+      <AnnotatedPreviewScope loc={!!noLoc} dedent={dedent}>
+        {exp}
+      </AnnotatedPreviewScope>
+    );
+
+  return (
+    <impure
+      fun={(ctx) => {
+        return wrapWithPreviewScope(
+          <>
+            {comment === undefined ? "" : (
+              <CommentLine>
+                <exps x={comment} />
+              </CommentLine>
+            )}
+            {wrapWithLoc(
+              <>
+                {kw === undefined ? "" : (
+                  <>
+                    <Keyword2>
+                      <exps x={kw} />
+                    </Keyword2>
+                    {" "}
+                  </>
+                )}
+                {mapId === undefined
+                  ? idRenderer({ id })
+                  : mapId(ctx, idRenderer({ id }))}
+                <RenderTypeArguments
+                  args={generics}
+                  multiline={multilineGenerics}
+                />
+                {setPreviewAnnotation(children)}
+              </>,
+            )}
+          </>,
+        );
+      }}
+    />
+  );
+}
+
 export type TypeProps = {
   /**
    * The identifier to define.
    */
-  lhs: FreshId;
+  id: FreshId;
   /**
    * Generic arguments.
    */
@@ -1930,6 +2081,10 @@ export type TypeProps = {
    * Whether to render each type argument in its own line.
    */
   multiline?: boolean;
+  /**
+   * A doc comment for the type definition as a whole.
+   */
+  comment?: Expressions;
   /**
    * What to bind to the identifier.
    */
@@ -1940,13 +2095,489 @@ export type TypeProps = {
  * A type definition.
  */
 export function Type(
-  { lhs, generics = [], multiline, children }: TypeProps,
+  { id, comment, generics, multiline, children }: TypeProps,
 ): Expression {
   return (
-    <>
-      <Keyword2>type</Keyword2> <RenderFreshType id={lhs} />
-      <RenderTypeArguments args={generics} multiline={multiline} />{" "}
+    <Item
+      id={id}
+      generics={generics}
+      multilineGenerics={multiline}
+      comment={comment}
+      kw="type"
+      idRenderer={RenderFreshType}
+    >
+      {" "}
       <AssignmentOp /> <exps x={children} />
-    </>
+    </Item>
+  );
+}
+
+export type LetItemProps = {
+  /**
+   * The identifier to use as the left-hand side of the definition.
+   */
+  id: FreshId;
+  /**
+   * Whether to prefix the id with a `mut` keyword.
+   */
+  mut?: boolean;
+  /**
+   * An optional type annotation.
+   */
+  type?: Expressions;
+  /**
+   * A doc comment for the item as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * The right side of the definition.
+   */
+  children: Expressions;
+};
+
+/**
+ * Create a global variable.
+ */
+export function LetItem(
+  { children, mut, id, type, comment }: LetItemProps,
+): Expression {
+  return (
+    <Item
+      id={id}
+      comment={comment}
+      kw="let"
+      idRenderer={RenderFreshValue}
+      mapId={(ctx, exp) => {
+        return (
+          <>
+            {mut
+              ? (
+                <>
+                  <Mut />
+                  {" "}
+                </>
+              )
+              : ""}
+            {type === undefined ? exp : (
+              <TypeAnnotation type={type}>
+                {exp}
+              </TypeAnnotation>
+            )}
+          </>
+        );
+      }}
+    >
+      {" "}
+      <AssignmentOp /> <exps x={children} />
+    </Item>
+  );
+}
+
+export type FunctionItemUntypedProps = {
+  /**
+   * The identifier to use as the function name.
+   */
+  id: FreshId;
+  /**
+   * A doc comment for the function.
+   */
+  comment?: Expressions;
+} & FunctionLiteralUntypedProps;
+
+/**
+ * Create a global function without type information.
+ */
+export function FunctionItemUntyped(
+  props: FunctionItemUntypedProps,
+): Expression {
+  const { id, comment } = props;
+  return (
+    <Item
+      id={id}
+      comment={comment}
+      kw="fn"
+      idRenderer={RenderFreshFunction}
+    >
+      {FunctionLiteralUntyped(props)}
+    </Item>
+  );
+}
+
+export type FunctionItemProps = {
+  /**
+   * The identifier to use as the function name.
+   */
+  id: FreshId;
+  /**
+   * A doc comment for the function.
+   */
+  comment?: Expressions;
+} & FunctionLiteralProps;
+
+/**
+ * Create a global function with type information.
+ */
+export function FunctionItem(
+  props: FunctionItemProps,
+): Expression {
+  const { id, comment } = props;
+  return (
+    <Item
+      id={id}
+      comment={comment}
+      kw="fn"
+      idRenderer={RenderFreshFunction}
+    >
+      {FunctionLiteral(props)}
+    </Item>
+  );
+}
+
+export type StructDefProps = {
+  /**
+   * The identifier of the struct type.
+   */
+  id: FreshId;
+  /**
+   * Generic arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
+  /**
+   * A doc comment for the struct as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * The fields. Identifier first, type second.
+   */
+  fields: MaybeCommented<[FreshId, Expressions]>[];
+};
+
+/**
+ * A struct definition.
+ */
+export function StructDef(
+  { id, generics, multilineGenerics, comment, fields }: StructDefProps,
+): Expression {
+  return (
+    <Item
+      id={id}
+      generics={generics}
+      multilineGenerics={multilineGenerics}
+      comment={comment}
+      kw="struct"
+      idRenderer={RenderFreshType}
+      previewAnnotation={
+        <>
+          Field of <R n={freshIdN(id)} />
+        </>
+      }
+    >
+      {" "}
+      <Delimited
+        multiline
+        c={["{", "}"]}
+        pythonSkip
+        separator=","
+        content={mapMaybeCommented(fields, ([fieldId, fieldType]) => {
+          return (
+            <>
+              <RenderFreshField id={fieldId} />
+              <Deemph>:</Deemph> <exps x={fieldType} />
+            </>
+          );
+        })}
+        mapContentIndividual={(_ctx, c) => {
+          return (
+            <PreviewScopePopWrapper>
+              <AnnotatedPreviewScope dedent={1}>
+                <exps x={c} />
+              </AnnotatedPreviewScope>
+            </PreviewScopePopWrapper>
+          );
+        }}
+      />
+    </Item>
+  );
+}
+
+export type TupleStructDefProps = {
+  /**
+   * The identifier of the struct type.
+   */
+  id: FreshId;
+  /**
+   * Generic arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
+  /**
+   * A doc comment for the struct as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * Whether to render each field in its own line.
+   */
+  multilineFields?: boolean;
+  /**
+   * The field types.
+   */
+  fields?: MaybeCommented<Expression>[];
+};
+
+/**
+ * A struct definition.
+ */
+export function TupleStructDef(
+  { id, generics, multilineGenerics, comment, multilineFields, fields = [] }:
+    TupleStructDefProps,
+): Expression {
+  return (
+    <Item
+      id={id}
+      generics={generics}
+      multilineGenerics={multilineGenerics}
+      comment={comment}
+      kw="struct"
+      idRenderer={RenderFreshType}
+      previewAnnotation={
+        <>
+          Field of <R n={freshIdN(id)} />
+        </>
+      }
+    >
+      {fields.length === 0 ? "" : (
+        <Delimited
+          multiline={multilineFields}
+          c={["(", ")"]}
+          separator=","
+          content={fields}
+        />
+      )}
+    </Item>
+  );
+}
+
+export type EnumProps = {
+  /**
+   * The identifier of the enum type.
+   */
+  id: FreshId;
+  /**
+   * Generic arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
+  /**
+   * A doc comment for the enum as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * The fields.
+   */
+  variants: (EnumVariantStruct | EnumVariantTupleStruct)[];
+};
+
+export type EnumVariantStruct = {
+  /**
+   * The identifier of the variant.
+   */
+  id: FreshId;
+  /**
+   * A doc comment for the struct as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * The fields. Identifier first, type second.
+   */
+  fields: MaybeCommented<[FreshId, Expressions]>[];
+};
+
+export type EnumVariantTupleStruct = {
+  /**
+   * Marker to distinguish from non-tuple variants.
+   */
+  tuple: true;
+  /**
+   * The identifier of the variant.
+   */
+  id: FreshId;
+  /**
+   * A doc comment for the struct as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * Whether to render each field in its own line.
+   */
+  multilineFields?: boolean;
+  /**
+   * The field types.
+   */
+  fields?: MaybeCommented<Expression>[];
+};
+
+/**
+ * An enum definition.
+ */
+export function Enum(
+  { id, generics, multilineGenerics, comment, variants }: EnumProps,
+): Expression {
+  return (
+    <Item
+      id={id}
+      generics={generics}
+      multilineGenerics={multilineGenerics}
+      comment={comment}
+      kw="enum"
+      idRenderer={RenderFreshType}
+      previewAnnotation={
+        <>
+          Variant of <R n={freshIdN(id)} />
+        </>
+      }
+    >
+      {" "}
+      <Delimited
+        multiline
+        c={["{", "}"]}
+        pythonSkip
+        content={variants.map((variant) => {
+          const comment = variant.comment;
+
+          if ("tuple" in variant) {
+            const fields = variant.fields ?? [];
+            const innerId = variant.id;
+
+            const innerItem = (
+              <PreviewScopePopWrapper>
+                <Item
+                  noLoc
+                  noPreviewScope
+                  id={innerId}
+                  idRenderer={RenderFreshVariant}
+                  dedent={1}
+                >
+                  {fields.length === 0 ? "" : (
+                    <>
+                      {" "}
+                      <Delimited
+                        multiline={variant.multilineFields}
+                        c={["(", ")"]}
+                        content={fields}
+                        separator=","
+                        mapContentIndividual={(_ctx, c) => {
+                          return (
+                            <PreviewScopePopWrapper>
+                              <AnnotatedPreviewScope dedent={2}>
+                                <exps x={c} />
+                              </AnnotatedPreviewScope>
+                            </PreviewScopePopWrapper>
+                          );
+                        }}
+                      />
+                    </>
+                  )}
+                </Item>
+              </PreviewScopePopWrapper>
+            );
+
+            if (comment === undefined) {
+              return innerItem;
+            } else {
+              return {
+                commented: {
+                  segment: innerItem,
+                  comment,
+                  dedicatedLine: true,
+                },
+              };
+            }
+          } else {
+            const fields = variant.fields;
+            const innerId = variant.id;
+
+            const innerItem = (
+              <PreviewScopePopWrapper>
+                <Item
+                  noLoc
+                  noPreviewScope
+                  id={innerId}
+                  idRenderer={RenderFreshVariant}
+                  previewAnnotation={
+                    <>
+                      Field of{" "}
+                      <Code>
+                        <R n={freshIdN(id)} />
+                        <Deemph>::</Deemph>
+                        <R n={freshIdN(innerId)} />
+                      </Code>
+                    </>
+                  }
+                  dedent={1}
+                >
+                  {" "}
+                  <Delimited
+                    multiline
+                    c={["{", "}"]}
+                    pythonSkip
+                    separator=","
+                    content={mapMaybeCommented(
+                      fields,
+                      ([fieldId, fieldType]) => {
+                        return (
+                          <>
+                            <RenderFreshField id={fieldId} />
+                            <Deemph>:</Deemph> <exps x={fieldType} />
+                          </>
+                        );
+                      },
+                    )}
+                    mapContentIndividual={(_ctx, c) => {
+                      return (
+                        <PreviewScopePopWrapper>
+                          <AnnotatedPreviewScope dedent={2}>
+                            <exps x={c} />
+                          </AnnotatedPreviewScope>
+                        </PreviewScopePopWrapper>
+                      );
+                    }}
+                  />
+                </Item>
+              </PreviewScopePopWrapper>
+            );
+
+            if (comment === undefined) {
+              return innerItem;
+            } else {
+              return {
+                commented: {
+                  segment: innerItem,
+                  comment,
+                  dedicatedLine: true,
+                },
+              };
+            }
+          }
+        })}
+        mapContentIndividual={(_ctx, c) => {
+          return (
+            <PreviewScopePopWrapper>
+              <AnnotatedPreviewScope dedent={1}>
+                <exps x={c} />
+              </AnnotatedPreviewScope>
+            </PreviewScopePopWrapper>
+          );
+        }}
+      />
+    </Item>
   );
 }
