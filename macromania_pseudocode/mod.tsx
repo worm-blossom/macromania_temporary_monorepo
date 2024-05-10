@@ -110,6 +110,7 @@ type State = {
   showLineNumbers: boolean;
   n: string;
   rainbowCount: number;
+  fake: boolean;
 };
 
 const [getState, _setState] = createSubstate<State>(
@@ -119,6 +120,7 @@ const [getState, _setState] = createSubstate<State>(
     showLineNumbers: false, // Initial value is ignored, this is overwritten by every Pseudocode macro.
     n: "",
     rainbowCount: 0,
+    fake: false,
   }),
 );
 
@@ -163,18 +165,25 @@ export function Pseudocode(
           : lineNumbering;
 
         const state = getState(ctx);
-        state.showLineNumbers = doNumber;
+        const fake = state.fake;
+        if (!fake) {
+          state.showLineNumbers = doNumber;
+        }
 
-        if (!noLineNumberReset) {
+        if (!noLineNumberReset && !fake) {
           state.lineNumber = 1;
         }
 
-        state.n = n;
+        if (!fake) {
+          state.n = n;
+        }
 
         return (
           <PreviewScope>
             <omnomnom>
-              <Def n={n} noHighlight refData={{ pseudocode: n }} />
+              {fake
+                ? ""
+                : <Def n={n} noHighlight refData={{ pseudocode: n }} />}
             </omnomnom>
             <impure
               fun={(ctx) => {
@@ -203,6 +212,30 @@ export function Pseudocode(
 }
 
 /**
+ * Causes any inner Pseudocode macro to not mutate certain state. In particular, it creates no new Def for inner pseudocode blocks, and inner pseudocode blocks do not increment the internal line number counter.
+ */
+export function FakePseudocode(
+  { children }: { children?: Expressions },
+): Expression {
+  let wasFakeBefore = false;
+  return (
+    <lifecycle
+      pre={(ctx) => {
+        const state = getState(ctx);
+        wasFakeBefore = state.fake;
+        state.fake = true;
+      }}
+      post={(ctx) => {
+        const state = getState(ctx);
+        state.fake = wasFakeBefore;
+      }}
+    >
+      <exps x={children} />
+    </lifecycle>
+  );
+}
+
+/**
  * Begin a new line of code. It has to be closed with the `<EndLoc/>` macro.
  */
 function StartLoc(): Expression {
@@ -225,7 +258,9 @@ function StartLoc(): Expression {
             <Div clazz="fold" />
           </Div>
         );
-        state.lineNumber += 1;
+        if (!state.fake) {
+          state.lineNumber += 1;
+        }
 
         const indents: Expression[] = [];
         for (let i = 0; i < state.indentation; i++) {
@@ -608,11 +643,15 @@ export type DelimitedProps = ConfigurableDelimiters & {
   /**
    * Render the content Expressions in their own line each, or within a single, shared line of code.
    */
-  multiline?: boolean;
+  multiline?: boolean | "emptyLines";
   /**
    * Optional separator to place between the content Expressions.
    */
   separator?: Expressions;
+  /**
+   * Separator to replace the separator that gets placed after the final piece of content (ignored in single-line rendering).
+   */
+  finalSeparator?: Expressions;
   /**
    * Exclude the delimiters from rainbowowing, i.e., do not color them according to nesting depth.
    */
@@ -625,10 +664,6 @@ export type DelimitedProps = ConfigurableDelimiters & {
    * Map the full `content` after rendering it.
    */
   mapContentCollective?: (ctx: Context, exps: Expressions) => Expression;
-  /**
-   * Don't wrap content with `Loc` macro.
-   */
-  skipWrappingLoc?: boolean;
 };
 
 /**
@@ -640,13 +675,13 @@ export function Delimited(
     content,
     multiline,
     separator,
+    finalSeparator,
     c,
     pythonSkip,
     ruby,
     noRainbow,
     mapContentIndividual = (ctx, exps) => <exps x={exps} />,
     mapContentCollective = (ctx, exps) => <exps x={exps} />,
-    skipWrappingLoc,
   }: DelimitedProps,
 ): Expression {
   return (
@@ -706,7 +741,11 @@ export function Delimited(
             stuffToRender.push(
               <>
                 <Deemph>
-                  <exps x={separator} />
+                  <exps
+                    x={i === content.length - 1 && finalSeparator !== undefined
+                      ? finalSeparator
+                      : separator}
+                  />
                 </Deemph>
                 {multiline ? "" : " "}
               </>,
@@ -747,6 +786,10 @@ export function Delimited(
             separatedContent.push(
               mapContentIndividual(ctx, <exps x={stuffToRender} />),
             );
+          }
+
+          if (i !== content.length - 1 && multiline === "emptyLines") {
+            separatedContent.push(<Loc />);
           }
         }
 

@@ -8,6 +8,7 @@ import {
   dependencyJs,
   Div,
   exposeCssAndJsDependencies,
+  FakePseudocode,
   Indent,
   InlineComment,
   Keyword,
@@ -18,6 +19,7 @@ import {
   PreviewScope,
   PreviewScopePopWrapper,
   PreviewScopePushWrapper,
+  Pseudocode,
   R,
 } from "../mod.tsx";
 import {
@@ -447,10 +449,10 @@ export function RenderFreshInterface(
 }
 
 export function RenderFreshTypeArg(
-  { id }: { id: FreshId },
+  { id, fake }: { id: FreshId; fake?: boolean },
 ): Expression {
   const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
-  return <DefTypeArg n={n} r={r} />;
+  return <DefTypeArg n={n} r={r} fake={fake} />;
 }
 
 export type ArrayTypeProps = {
@@ -1827,12 +1829,14 @@ export type TypeArgument = {
   multiline?: boolean;
 };
 
-export function RenderTypeArgument({ ty }: { ty: TypeArgument }): Expression {
+export function RenderTypeArgument(
+  { ty, fake }: { ty: TypeArgument; fake?: boolean },
+): Expression {
   const { id, bounds = [], multiline } = ty;
 
   return (
     <>
-      <RenderFreshTypeArg id={id} />
+      <RenderFreshTypeArg id={id} fake={fake} />
       {bounds.length === 0 ? "" : (
         <>
           <Deemph>:</Deemph>{" "}
@@ -1849,9 +1853,10 @@ export function RenderTypeArgument({ ty }: { ty: TypeArgument }): Expression {
 }
 
 export function RenderTypeArguments(
-  { args = [], multiline }: {
+  { args = [], multiline, fake }: {
     args?: MaybeCommented<TypeArgument>[];
     multiline?: boolean;
+    fake?: boolean; // Pass the fake prop to the Def macro.
   },
 ): Expression {
   return (
@@ -1862,7 +1867,7 @@ export function RenderTypeArguments(
           c={[<EscapeHtml>{"<"}</EscapeHtml>, <EscapeHtml>{">"}</EscapeHtml>]}
           content={mapMaybeCommented(
             args,
-            (arg) => <RenderTypeArgument ty={arg} />,
+            (arg) => <RenderTypeArgument ty={arg} fake={fake} />,
           )}
           separator=","
         />
@@ -2657,7 +2662,7 @@ export function Interface(
     >
       {" "}
       <Delimited
-        multiline
+        multiline="emptyLines"
         c={["{", "}"]}
         pythonSkip
         content={members.map((member) => {
@@ -2753,4 +2758,201 @@ export function Interface(
  */
 export function Self(): Expression {
   return <Keyword>Self</Keyword>;
+}
+
+export type ImplProps = {
+  /**
+   * A doc comment for the item as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * Generic arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
+  /**
+   * The DefRef id of the interface being implemented.
+   */
+  iface: Expressions;
+  /**
+   * The DefRef id of the type that implements the interface.
+   */
+  type: Expressions;
+  /**
+   * Implementations of the members.
+   */
+  members?: ((LetItemProps & { let: true }) | FunctionItemProps)[];
+};
+
+/**
+ * Implement an interface for a type.
+ */
+export function Impl(
+  {
+    comment,
+    generics = [],
+    multilineGenerics,
+    iface,
+    type,
+    members = [],
+  }: ImplProps,
+): Expression {
+  return (
+    <AnnotatedPreviewScope loc>
+      {comment === undefined ? "" : (
+        <CommentLine>
+          <exps x={comment} />
+        </CommentLine>
+      )}
+      <Loc>
+        <Keyword2>impl</Keyword2>
+        <RenderTypeArguments
+          args={generics}
+          multiline={multilineGenerics}
+        />{" "}
+        <exps x={iface} /> <Keyword2>for</Keyword2> <exps x={type} />{" "}
+        <SetPreviewAnnotation
+          annotation={
+            <>
+              <Div>Member implementation of:</Div>
+              <FakePseudocode>
+                <Code clazz="pseudocode noLineNumbers dedent1">
+                  <Loc>
+                    <Keyword2>impl</Keyword2>
+                    <RenderTypeArguments
+                      args={generics}
+                      multiline={multilineGenerics}
+                      fake
+                    />{" "}
+                    <exps x={iface} /> <Keyword2>for</Keyword2>{" "}
+                    <exps x={type} />
+                  </Loc>
+                </Code>
+              </FakePseudocode>
+            </>
+          }
+        >
+          <Delimited
+            multiline="emptyLines"
+            c={["{", "}"]}
+            pythonSkip
+            content={members.map((member) => {
+              const comment = member.comment;
+
+              if ("let" in member) {
+                // Member is LetInterfaceProps.
+                const innerItem = (
+                  <PreviewScopePopWrapper>
+                    <Item
+                      id={member.id}
+                      noPreviewScope
+                      noLoc
+                      kw="let"
+                      idRenderer={RenderFreshValue}
+                      mapId={(ctx, exp) => {
+                        return (
+                          <>
+                            {member.mut
+                              ? (
+                                <>
+                                  <Mut />
+                                  {" "}
+                                </>
+                              )
+                              : ""}
+                            {member.type === undefined
+                              ? exp
+                              : (
+                                <TypeAnnotation type={member.type}>
+                                  {exp}
+                                </TypeAnnotation>
+                              )}
+                          </>
+                        );
+                      }}
+                    >
+                      {" "}
+                      <AssignmentOp /> <exps x={member.children} />
+                    </Item>
+                  </PreviewScopePopWrapper>
+                );
+
+                if (comment === undefined) {
+                  return innerItem;
+                } else {
+                  return {
+                    commented: {
+                      segment: innerItem,
+                      comment,
+                      dedicatedLine: true,
+                    },
+                  };
+                }
+              } else {
+                const innerItem = (
+                  <PreviewScopePopWrapper>
+                    <Item
+                      noLoc
+                      noPreviewScope
+                      id={member.id}
+                      idRenderer={RenderFreshFunction}
+                      previewAnnotation={null}
+                    >
+                      <FunctionLiteral
+                        args={member.args}
+                        ret={member.ret}
+                        multilineArgs={member.multilineArgs}
+                        generics={member.generics}
+                        multilineGenerics={member.multilineGenerics}
+                        body={member.body}
+                      />
+                    </Item>
+                  </PreviewScopePopWrapper>
+                );
+
+                if (comment === undefined) {
+                  return innerItem;
+                } else {
+                  return {
+                    commented: {
+                      segment: innerItem,
+                      comment,
+                      dedicatedLine: true,
+                    },
+                  };
+                }
+              }
+            })}
+            mapContentIndividual={(_ctx, c) => {
+              return (
+                <PreviewScopePopWrapper>
+                  <AnnotatedPreviewScope dedent={1}>
+                    <exps x={c} />
+                  </AnnotatedPreviewScope>
+                </PreviewScopePopWrapper>
+              );
+            }}
+          />
+        </SetPreviewAnnotation>
+      </Loc>
+    </AnnotatedPreviewScope>
+  );
+}
+
+/**
+ * Refer to an interface member as implemented by a type.
+ */
+export function QualifiedMember(
+  { type, member }: { member: string; type: Expressions },
+): Expression {
+  return (
+    <>
+      <exps x={type} />
+      <Deemph>::</Deemph>
+      <R n={member} />
+    </>
+  );
 }
