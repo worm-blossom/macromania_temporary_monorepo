@@ -203,7 +203,7 @@ export function TupleType(
 ): Expression {
   return (
     <Delimited
-      c={["(", ")"]}
+      delims={["(", ")"]}
       content={types ?? []}
       multiline={multiline}
       separator=","
@@ -334,7 +334,7 @@ export function FunctionType(
     <>
       <RenderTypeArguments args={generics} multiline={multilineGenerics} />
       <Delimited
-        c={["(", ")"]}
+        delims={["(", ")"]}
         content={args}
         multiline={multiline}
         separator=","
@@ -474,7 +474,7 @@ export function ArrayType(
 ): Expression {
   return (
     <Delimited
-      c={["[", "]"]}
+      delims={["[", "]"]}
       content={[children, count]}
       separator=";"
     />
@@ -558,7 +558,10 @@ export function TypeApplicationRaw(
     <>
       <exps x={constr} />
       <Delimited
-        c={[<EscapeHtml>{"<"}</EscapeHtml>, <EscapeHtml>{">"}</EscapeHtml>]}
+        delims={[
+          <EscapeHtml>{"<"}</EscapeHtml>,
+          <EscapeHtml>{">"}</EscapeHtml>,
+        ]}
         content={args}
         multiline={multiline}
         separator=","
@@ -675,7 +678,7 @@ export function Tuple(
       {name === undefined ? "" : <exps x={name} />}
       {fields.length === 0 && name !== undefined ? "" : (
         <Delimited
-          c={["(", ")"]}
+          delims={["(", ")"]}
           content={fields}
           multiline={multiline}
           separator=","
@@ -786,8 +789,7 @@ export function Record(
         </>
       )}
       <Delimited
-        c={["{", "}"]}
-        pythonSkip
+        delims={["{", "}"]}
         multiline={multiline}
         separator=","
         content={mapMaybeCommented(fields, ([field, exp]) => (
@@ -950,7 +952,7 @@ export function FunctionLiteralUntyped(
   return (
     <>
       <Delimited
-        c={["(", ")"]}
+        delims={["(", ")"]}
         content={mapMaybeCommented(
           args,
           ([id, n]) => <RenderFreshValue id={[id, n]} />,
@@ -962,9 +964,7 @@ export function FunctionLiteralUntyped(
       <Deemph>{`->`}</Deemph>
       {` `}
       <Delimited
-        c={["{", "}"]}
-        pythonSkip
-        ruby={["", "end"]}
+        delims={["{", "}"]}
         content={body}
         multiline={!singleLineBody}
       />
@@ -1021,7 +1021,7 @@ export function FunctionLiteral(
     <>
       <RenderTypeArguments args={generics} multiline={multilineGenerics} />
       <Delimited
-        c={["(", ")"]}
+        delims={["(", ")"]}
         content={mapMaybeCommented(
           args,
           ([id, n, ty]) => {
@@ -1047,9 +1047,7 @@ export function FunctionLiteral(
         </>
       )}
       <Delimited
-        c={["{", "}"]}
-        pythonSkip
-        ruby={["", "end"]}
+        delims={["{", "}"]}
         content={body}
         multiline={!singleLineBody}
       />
@@ -1092,14 +1090,17 @@ export function ApplicationRaw(
       <exps x={fun} />
       {generics === undefined ? "" : (
         <Delimited
-          c={[<EscapeHtml>{"<"}</EscapeHtml>, <EscapeHtml>{">"}</EscapeHtml>]}
+          delims={[
+            <EscapeHtml>{"<"}</EscapeHtml>,
+            <EscapeHtml>{">"}</EscapeHtml>,
+          ]}
           content={generics}
           multiline={multilineGenerics}
           separator=","
         />
       )}
       <Delimited
-        c={["(", ")"]}
+        delims={["(", ")"]}
         content={args}
         multiline={multilineArgs}
         separator=","
@@ -1163,7 +1164,7 @@ export function ArrayLiteral(
 ): Expression {
   return (
     <Delimited
-      c={["[", "]"]}
+      delims={["[", "]"]}
       content={fields}
       multiline={multiline}
       separator=","
@@ -1505,9 +1506,7 @@ export function If({ cond, singleline, body }: IfProps): Expression {
       <Keyword>if</Keyword> <exps x={cond} />{" "}
       <Delimited
         multiline={!singleline}
-        pythonSkip
-        c={["{", "}"]}
-        ruby={["then", "end"]}
+        delims={["{", "}"]}
         content={body ?? []}
       />
     </>
@@ -1534,9 +1533,7 @@ export function Else({ singleline, body }: ElseProps): Expression {
       <Keyword>else</Keyword>{" "}
       <Delimited
         multiline={!singleline}
-        pythonSkip
-        c={["{", "}"]}
-        ruby={["", "end"]}
+        delims={["{", "}"]}
         content={body ?? []}
       />
     </>
@@ -1563,9 +1560,7 @@ export function ElseIf({ singleline, body }: ElseIfProps): Expression {
       <Keyword>else</Keyword> <Keyword>if</Keyword>{" "}
       <Delimited
         multiline={!singleline}
-        pythonSkip
-        c={["{", "}"]}
-        ruby={["then", "end"]}
+        delims={["{", "}"]}
         content={body ?? []}
       />
     </>
@@ -1592,9 +1587,7 @@ export function Match({ exp, cases }: MatchProps): Expression {
       <Keyword>match</Keyword> <exps x={exp} />{" "}
       <Delimited
         multiline
-        pythonSkip
-        c={["{", "}"]}
-        ruby={["cases", "end"]}
+        delims={["{", "}"]}
         content={mapMaybeCommented(cases, ([theCase, body]) => {
           return (
             <>
@@ -1602,9 +1595,7 @@ export function Match({ exp, cases }: MatchProps): Expression {
                 ? (
                   <Delimited
                     multiline
-                    pythonSkip
-                    c={["{", "}"]}
-                    ruby={["case", "end"]}
+                    delims={["{", "}"]}
                     content={body}
                   />
                 )
@@ -1682,9 +1673,7 @@ export function While({ cond, singleline, body }: WhileProps): Expression {
       <Keyword>while</Keyword> <exps x={cond} />{" "}
       <Delimited
         multiline={!singleline}
-        pythonSkip
-        c={["{", "}"]}
-        ruby={["do", "end"]}
+        delims={["{", "}"]}
         content={body ?? []}
       />
     </>
@@ -1711,9 +1700,7 @@ export function Loop({ singleline, body }: LoopProps): Expression {
       <Keyword>loop</Keyword>{" "}
       <Delimited
         multiline={!singleline}
-        pythonSkip
-        c={["{", "}"]}
-        ruby={["do", "end"]}
+        delims={["{", "}"]}
         content={body ?? []}
       />
     </>
@@ -1762,9 +1749,7 @@ export function ForRaw(
       <exps x={pattern} /> <Keyword>in</Keyword> <exps x={iterator} />{" "}
       <Delimited
         multiline={!singleline}
-        pythonSkip
-        c={["{", "}"]}
-        ruby={["do", "end"]}
+        delims={["{", "}"]}
         content={body ?? []}
       />
     </>
@@ -1841,7 +1826,7 @@ export function RenderTypeArgument(
         <>
           <Deemph>:</Deemph>{" "}
           <Delimited
-            c={["", ""]}
+            delims={["", ""]}
             separator=" +"
             multiline={multiline}
             content={bounds}
@@ -1864,7 +1849,10 @@ export function RenderTypeArguments(
       {args.length === 0 ? "" : (
         <Delimited
           multiline={multiline}
-          c={[<EscapeHtml>{"<"}</EscapeHtml>, <EscapeHtml>{">"}</EscapeHtml>]}
+          delims={[
+            <EscapeHtml>{"<"}</EscapeHtml>,
+            <EscapeHtml>{">"}</EscapeHtml>,
+          ]}
           content={mapMaybeCommented(
             args,
             (arg) => <RenderTypeArgument ty={arg} fake={fake} />,
@@ -2284,8 +2272,7 @@ export function StructDef(
       {" "}
       <Delimited
         multiline
-        c={["{", "}"]}
-        pythonSkip
+        delims={["{", "}"]}
         separator=","
         content={mapMaybeCommented(fields, ([fieldId, fieldType]) => {
           return (
@@ -2360,7 +2347,7 @@ export function TupleStructDef(
       {fields.length === 0 ? "" : (
         <Delimited
           multiline={multilineFields}
-          c={["(", ")"]}
+          delims={["(", ")"]}
           separator=","
           content={fields}
         />
@@ -2453,8 +2440,7 @@ export function Enum(
       {" "}
       <Delimited
         multiline
-        c={["{", "}"]}
-        pythonSkip
+        delims={["{", "}"]}
         content={variants.map((variant) => {
           const comment = variant.comment;
 
@@ -2476,7 +2462,7 @@ export function Enum(
                       {" "}
                       <Delimited
                         multiline={variant.multilineFields}
-                        c={["(", ")"]}
+                        delims={["(", ")"]}
                         content={fields}
                         separator=","
                         mapContentIndividual={(_ctx, c) => {
@@ -2532,8 +2518,7 @@ export function Enum(
                   {" "}
                   <Delimited
                     multiline
-                    c={["{", "}"]}
-                    pythonSkip
+                    delims={["{", "}"]}
                     separator=","
                     content={mapMaybeCommented(
                       fields,
@@ -2663,8 +2648,7 @@ export function Interface(
       {" "}
       <Delimited
         multiline="emptyLines"
-        c={["{", "}"]}
-        pythonSkip
+        delims={["{", "}"]}
         content={members.map((member) => {
           const comment = member.comment;
 
@@ -2837,8 +2821,7 @@ export function Impl(
         >
           <Delimited
             multiline="emptyLines"
-            c={["{", "}"]}
-            pythonSkip
+            delims={["{", "}"]}
             content={members.map((member) => {
               const comment = member.comment;
 

@@ -579,26 +579,6 @@ export function Delimiters(
 }
 
 /**
- * Information to render delimiters in all supported `DelimiterStyle`s.
- */
-export type ConfigurableDelimiters = {
-  /**
-   * The default delimiters, as rendered in C-style pseudocode.
-   */
-  c: [Expressions, Expressions];
-  /**
-   * Whether to omit these delimiters in Python-style pseudocode.
-   * Defaults to false.
-   */
-  pythonSkip?: boolean;
-  /**
-   * Alternate delimiters to use in Ruby-style pseudocode.
-   * Defaults to undefined, rendering the same as in c, even for ruby.
-   */
-  ruby?: [Expression, Expression];
-};
-
-/**
  * Information about optionally adding a comment to a segment of code.
  *
  * Generic about how exactly the segment of code is described.
@@ -635,7 +615,11 @@ export function mapMaybeCommented<From, To>(
 /**
  * Props for the `Delimited` macro.
  */
-export type DelimitedProps = ConfigurableDelimiters & {
+export type DelimitedProps = {
+  /**
+   * The default delimiters, as rendered in C-style pseudocode.
+   */
+  delims: [Expressions, Expressions];
   /**
    * The code to place between the delimiters.
    */
@@ -676,9 +660,7 @@ export function Delimited(
     multiline,
     separator,
     finalSeparator,
-    c,
-    pythonSkip,
-    ruby,
+    delims,
     noRainbow,
     mapContentIndividual = (ctx, exps) => <exps x={exps} />,
     mapContentCollective = (ctx, exps) => <exps x={exps} />,
@@ -690,19 +672,8 @@ export function Delimited(
         const config = getConfig(ctx);
         const style = config.delimiterStyle;
 
-        let open = c[0];
-        let close = c[1];
-
-        if (style === "ruby" && ruby !== undefined) {
-          open = ruby[0];
-          close = ruby[1];
-
-          if (!multiline) {
-            open = <>{ruby[0]}{" "}</>;
-          }
-        }
-
-        const noDelims = multiline && (style === "python") && pythonSkip;
+        const open = delims[0];
+        const close = delims[1];
 
         const separatedContent: Expressions = [];
         for (let i = 0; i < content.length; i++) {
@@ -748,12 +719,6 @@ export function Delimited(
                   />
                 </Deemph>
                 {multiline ? "" : " "}
-              </>,
-            );
-          } else if (!multiline && style === "ruby" && ruby !== undefined) {
-            stuffToRender.push(
-              <>
-                {" "}
               </>,
             );
           }
@@ -803,13 +768,11 @@ export function Delimited(
           )
           : mapContentCollective(ctx, <exps x={separatedContent} />);
 
-        return noDelims
-          ? betweenDelimiters
-          : (
-            <Delimiters delims={[open, close]} noRainbow={noRainbow}>
-              {betweenDelimiters}
-            </Delimiters>
-          );
+        return (
+          <Delimiters delims={[open, close]} noRainbow={noRainbow}>
+            {betweenDelimiters}
+          </Delimiters>
+        );
       }}
     />
   );
