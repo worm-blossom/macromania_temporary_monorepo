@@ -1920,7 +1920,7 @@ function AnnotatedPreviewScope(
 function SetPreviewAnnotation(
   { children, annotation }: {
     children?: Expressions;
-    annotation?: Expressions;
+    annotation?: Expressions | null; // null clears it
   },
 ): Expression {
   let previousPreview: Expressions | null = null;
@@ -1969,7 +1969,7 @@ type ItemProps = {
   /**
    * Preview annotation to set for all defs inside the item.
    */
-  previewAnnotation?: Expressions;
+  previewAnnotation?: Expressions | null;
   /**
    * Optionally map the rendered id.
    */
@@ -2580,4 +2580,177 @@ export function Enum(
       />
     </Item>
   );
+}
+
+export type InterfaceProps = {
+  /**
+   * The identifier of the interface.
+   */
+  id: FreshId;
+  /**
+   * Generic arguments.
+   */
+  generics?: MaybeCommented<TypeArgument>[];
+  /**
+   * Whether to render each type argument in its own line.
+   */
+  multilineGenerics?: boolean;
+  /**
+   * A doc comment for the interface as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * The fields. Identifier first, type second.
+   */
+  members: (LetInterfaceProps | FunctionInterfaceProps)[];
+};
+
+export type LetInterfaceProps = {
+  /**
+   * The identifier to use as the left-hand side of the definition.
+   */
+  id: FreshId;
+  /**
+   * The type annotation.
+   */
+  type: Expressions;
+  /**
+   * A doc comment for the item as a whole.
+   */
+  comment?: Expressions;
+  /**
+   * Marker.
+   */
+  let: true;
+};
+
+export type FunctionInterfaceProps = {
+  /**
+   * The identifier to use as the function name.
+   */
+  id: FreshId;
+  /**
+   * A doc comment for the function.
+   */
+  comment?: Expressions;
+} & FunctionTypeNamedProps;
+
+/**
+ * An interface definition.
+ */
+export function Interface(
+  { id, generics, multilineGenerics, comment, members }: InterfaceProps,
+): Expression {
+  return (
+    <Item
+      id={id}
+      generics={generics}
+      multilineGenerics={multilineGenerics}
+      comment={comment}
+      kw="interface"
+      idRenderer={RenderFreshInterface}
+      previewAnnotation={
+        <>
+          Member of <R n={freshIdN(id)} />
+        </>
+      }
+    >
+      {" "}
+      <Delimited
+        multiline
+        c={["{", "}"]}
+        pythonSkip
+        content={members.map((member) => {
+          const comment = member.comment;
+
+          if ("let" in member) {
+            // Member is LetInterfaceProps.
+            const innerId = member.id;
+
+            const innerItem = (
+              <PreviewScopePopWrapper>
+                <Item
+                  noLoc
+                  noPreviewScope
+                  id={innerId}
+                  kw="let"
+                  idRenderer={RenderFreshValue}
+                  mapId={(ctx, exp) => {
+                    return (
+                      <TypeAnnotation type={member.type}>
+                        {exp}
+                      </TypeAnnotation>
+                    );
+                  }}
+                />
+              </PreviewScopePopWrapper>
+            );
+
+            if (comment === undefined) {
+              return innerItem;
+            } else {
+              return {
+                commented: {
+                  segment: innerItem,
+                  comment,
+                  dedicatedLine: true,
+                },
+              };
+            }
+          } else {
+            const innerId = member.id;
+
+            const innerItem = (
+              <PreviewScopePopWrapper>
+                <Item
+                  noLoc
+                  noPreviewScope
+                  id={innerId}
+                  idRenderer={RenderFreshFunction}
+                  previewAnnotation={null}
+                  dedent={1}
+                >
+                  <FunctionTypeNamed
+                    args={member.args}
+                    ret={member.ret}
+                    multiline={member.multiline}
+                    generics={member.generics}
+                    multilineGenerics={member.multilineGenerics}
+                  />
+                </Item>
+              </PreviewScopePopWrapper>
+            );
+
+            if (comment === undefined) {
+              return innerItem;
+            } else {
+              return {
+                commented: {
+                  segment: innerItem,
+                  comment,
+                  dedicatedLine: true,
+                },
+              };
+            }
+          }
+        })}
+        mapContentIndividual={(_ctx, c) => {
+          return (
+            <PreviewScopePopWrapper>
+              <AnnotatedPreviewScope dedent={1}>
+                <exps x={c} />
+              </AnnotatedPreviewScope>
+            </PreviewScopePopWrapper>
+          );
+        }}
+      />
+    </Item>
+  );
+}
+
+/**
+ * The `Self` keyword to use in interface definitions.
+ */
+export function Self(): Expression {
+  return <Keyword>Self</Keyword>;
 }
