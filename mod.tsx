@@ -18,3 +18,4 @@ export * from "./macromania_previews/mod.tsx";
 export * from "./macromania_webserverroot/mod.tsx";
 export * from "./macromania_pseudocode/mod.tsx";
 export * from "./macromania_rustic/mod.tsx";
+export * from "./macromania_bib/mod.tsx";

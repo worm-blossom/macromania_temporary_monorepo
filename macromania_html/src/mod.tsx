@@ -33,6 +33,7 @@ export { Hgroup } from "./elements/hgroup.tsx";
 export { Hr } from "./elements/hr.tsx";
 export { Html } from "./elements/html.tsx";
 export { I } from "./elements/i.tsx";
+export { Img } from "./elements/img.tsx";
 export { Ins } from "./elements/insdel.tsx";
 export { Kbd } from "./elements/kbd.tsx";
 export { Li } from "./elements/li.tsx";

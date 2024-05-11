@@ -1224,7 +1224,7 @@ export function Index(
   );
 }
 
-export type ReferenceProps = {
+export type PointerProps = {
   /**
    * The expression of which to take a reference.
    */
@@ -1238,8 +1238,8 @@ export type ReferenceProps = {
 /**
  * Take a reference to a value.
  */
-export function Reference(
-  { children, mut }: ReferenceProps,
+export function Pointer(
+  { children, mut }: PointerProps,
 ): Expression {
   const kw: Expression = mut
     ? (typeof mut === "boolean" ? <Mut /> : <Keyword2>{mut}</Keyword2>)

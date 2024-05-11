@@ -38,13 +38,6 @@ const l = createLogger("LoggerPseudocode");
 const ConfigMacro = l.ConfigMacro;
 export { ConfigMacro as LoggerPseudocode };
 
-/**
- * Three different styles of rendering delimiters.
- *
- * `c` renders C-style delimiters. `python` omits curly braces. `ruby` uses keywords instead of punctuation.
- */
-export type DelimiterStyle = "c" | "python" | "ruby";
-
 export type PseudocodeConfig = {
   /**
    * Whether to render line numbers. Defaults to `false`.
@@ -63,10 +56,6 @@ export type PseudocodeConfig = {
    * Defaults to three.
    */
   colorsOfTheRainbow?: number;
-  /**
-   * Which delimiter style to use. Defaults to C-style delimiters.
-   */
-  delimiterStyle?: DelimiterStyle;
 };
 
 const [
@@ -94,9 +83,6 @@ const [
     }
     if (update.colorsOfTheRainbow !== undefined) {
       newValue.colorsOfTheRainbow = update.colorsOfTheRainbow;
-    }
-    if (update.delimiterStyle !== undefined) {
-      newValue.delimiterStyle = update.delimiterStyle;
     }
 
     return newValue;
@@ -670,7 +656,6 @@ export function Delimited(
     <impure
       fun={(ctx) => {
         const config = getConfig(ctx);
-        const style = config.delimiterStyle;
 
         const open = delims[0];
         const close = delims[1];

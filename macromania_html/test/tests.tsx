@@ -37,6 +37,7 @@ import {
   Hr,
   Html,
   I,
+  Img,
   Ins,
   Kbd,
   Li,
@@ -605,6 +606,88 @@ Deno.test("html", async () => {
 
 Deno.test("i", async () => {
   await testGlobalNonVoid(I, "i")();
+});
+
+Deno.test("img", async () => {
+  await testGlobalVoid(Img, "img")();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img alt="bla"></Img>);
+    assertEquals(got, `<img alt="bla" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img src="bla"></Img>);
+    assertEquals(got, `<img src="bla" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img srcset="bla"></Img>);
+    assertEquals(got, `<img srcset="bla" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img crossorigin="anonymous"></Img>);
+    assertEquals(got, `<img crossorigin="anonymous" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img usemap="#bla"></Img>);
+    assertEquals(got, `<img usemap="#bla" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img ismap></Img>);
+    assertEquals(got, `<img ismap />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img sizes="bla"></Img>);
+    assertEquals(got, `<img sizes="bla" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img width={17}></Img>);
+    assertEquals(got, `<img width="17" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img height={42}></Img>);
+    assertEquals(got, `<img height="42" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img referrerpolicy="origin"></Img>);
+    assertEquals(got, `<img referrerpolicy="origin" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img decoding="sync"></Img>);
+    assertEquals(got, `<img decoding="sync" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img loading="lazy"></Img>);
+    assertEquals(got, `<img loading="lazy" />`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Img fetchpriority="low"></Img>);
+    assertEquals(got, `<img fetchpriority="low" />`);
+  })();
 });
 
 Deno.test("ins", async () => {
