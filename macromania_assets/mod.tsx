@@ -1,3 +1,4 @@
+import { hrefTo } from "../mod.tsx";
 import { posixPath } from "./deps.ts";
 import {
   Colors,
@@ -49,6 +50,33 @@ export function resolveAssetToOutFsPath(
   } else {
     return lookup;
   }
+}
+
+/**
+ * Render a path to the (possibly transformed and renamed) asset that was located in the asset directory at the given path.
+ */
+export function ResolveAsset({ asset }: { asset: string[] }): Expression {
+  return (
+    <impure
+      fun={(ctx) => {
+        const resolved = resolveAssetToOutFsPath(ctx, asset);
+        if (resolved === null) {
+          l.error(
+            ctx,
+            `Asset at path ${
+              styleAssetPath(asset)
+            } does not resolve to any output path.`,
+          );
+          l.logGroup(ctx, () => {
+            l.error(ctx, `There was no such input asset.`);
+          });
+          return ctx.halt();
+        } else {
+          return hrefTo(ctx, { relativity: -1, components: resolved });
+        }
+      }}
+    />
+  );
 }
 
 /**

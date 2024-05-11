@@ -151,3 +151,21 @@ assertEquals(
   ["build", "assets", "foo.txt"],
 );
 ```
+
+To obtain a link from the current file to the transformed location of an asset, use the `ResolveAsset` macro:
+
+```tsx
+import { Assets, transformCopy, Dir } from "./deps.tsx";
+
+<Dir name="build">
+  <Dir name="assets">
+    <Assets
+      input={["assets"]}
+      assets={{children: {}}}
+    />;
+  </Dir>
+</Dir>
+
+/* later */
+<ResolveAsset asset={["assets", "foo.png"]}/> // "/assets/foo.png", for example
+```
