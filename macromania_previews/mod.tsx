@@ -142,6 +142,18 @@ export function PreviewScope(
 
   function post(ctx: Context) {
     setState(ctx, previousState);
+
+    // Any css and js dependencies that got registered in this preview scope should also be registered in the parent scope (which will transitievly extend to all ancestors).
+    for (const cssDep of myState.cssDeps) {
+      if (previousState && previousState.cssDeps.indexOf(cssDep) === -1) {
+        previousState.cssDeps.push(cssDep);
+      }
+    }
+    for (const jsDep of myState.jsDeps) {
+      if (previousState && previousState.jsDeps.indexOf(jsDep) === -1) {
+        previousState.jsDeps.push(jsDep);
+      }
+    }
   }
 
   function createPreviews(evaled: string, ctx: Context): Expression {
@@ -440,7 +452,8 @@ export function PreviewScopePopWrapper(
     children?: Expressions;
   },
 ): Expression {
-  let old: ((ctx: Context, exp: Expression) => Expression) | undefined = undefined;
+  let old: ((ctx: Context, exp: Expression) => Expression) | undefined =
+    undefined;
   return (
     <lifecycle
       pre={(ctx) => {
