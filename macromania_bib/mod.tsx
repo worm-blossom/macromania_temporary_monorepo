@@ -4,12 +4,16 @@ import {
   dependencyJs,
   Div,
   PreviewScope,
+  PreviewScopePushWrapper,
   R,
+  ResolveAsset,
+  Span,
 } from "../mod.tsx";
 import { Config } from "./deps.ts";
 import { createConfigOptions } from "./deps.ts";
 import {
   CiteJs,
+  Colors,
   Context,
   createLogger,
   createSubstate,
@@ -20,6 +24,9 @@ import {
 
 import defaultStyle from "./styles/din-1505-2.csl.json" with { type: "json" };
 import locales from "./locales.json" with { type: "json" };
+
+// non-breaking space html escape.
+const nbsp = "&nbsp;";
 
 const l = createLogger("LoggerBib");
 const ConfigMacro = l.ConfigMacro;
@@ -54,6 +61,10 @@ type ScopeState = {
    * The citeproc CSL.Engine to use for this bibscope.
    */
   citeproc: unknown;
+  /**
+   * Metadata about the items, keyed by itemIds.
+   */
+  items: Map<string, ItemDeclaration>;
 };
 
 /**
@@ -166,7 +177,7 @@ export type BibItemDeclaration = {
   /**
    * If the cited item is in the asset directory, specify its asset path here.
    *
-   * If this is present, `href` will be ignored.
+   * If this is present, `href` will be ignored, and items link to the asset instead.
    */
   asset?: string[];
   /**
@@ -213,6 +224,8 @@ export function BibScope(
         // Impure so we can do logging.
 
         const itemMap: Map<string, ItemDeclaration> = new Map();
+        const citableItems = [];
+        const uncitedItems = [];
 
         for (const itemDeclaration of items) {
           let actualItem: BibItem;
@@ -225,8 +238,9 @@ export function BibScope(
 
               const parsed = citeJs.format("data", {
                 format: "object",
-              }) as BibItem;
-              actualItem = parsed;
+                // deno-lint-ignore no-explicit-any
+              }) as any;
+              actualItem = parsed[0] as BibItem;
             } catch (err) {
               l.warn(ctx, `Error parsing bibtex input:`);
               l.at(ctx);
@@ -245,6 +259,12 @@ export function BibScope(
           };
 
           itemMap.set(`${actualItem.id}`, decl);
+
+          if (decl.includeEvenIfNotCited) {
+            uncitedItems.push(decl.item.id);
+          } else {
+            citableItems.push(decl.item.id);
+          }
         }
 
         const citeproc = new CSL.Engine(
@@ -257,7 +277,7 @@ export function BibScope(
               }
             },
             retrieveItem: (itemId: string | number) => {
-              return itemMap.get(`${itemId}`);
+              return itemMap.get(`${itemId}`)?.item;
             },
           },
           style,
@@ -265,10 +285,14 @@ export function BibScope(
           forceLang,
         );
 
+        citeproc.updateUncitedItems(uncitedItems);
+        citeproc.updateItems(citableItems);
+
         const myState: ScopeState = {
           stillCollecting: true,
           citations: [],
           citeproc,
+          items: itemMap,
         };
 
         // Lifecycle to set up an isolated state for this bibscope.
@@ -277,7 +301,10 @@ export function BibScope(
             pre={(ctx) => {
               const state = getState(ctx);
               if (state !== null) {
-                l.error(ctx, "Must not nest BibScopes.");
+                l.error(
+                  ctx,
+                  `Must not nest ${Colors.yellow(`<BibScope>`)} macros.`,
+                );
                 return ctx.halt();
               }
 
@@ -293,4 +320,468 @@ export function BibScope(
       }}
     />
   );
+}
+
+export type CiteProps = {
+  /**
+   * The ids of the items to cite (one or more).
+   */
+  item: string | string[];
+  /**
+   * Children, if any, turn into a link to the cited item.
+   */
+  children?: Expressions;
+};
+
+/**
+ * Cite one or more items by their itemID. If this has children, they will turn into a link.
+ */
+export function Bib({ item, children }: CiteProps): Expression {
+  const items = Array.isArray(item) ? item : [item];
+
+  // For logging only.
+  const renderedMacro = Colors.yellow(
+    `<Bib${
+      children === undefined ||
+        (Array.isArray(children) && children.length === 0)
+        ? "/"
+        : ""
+    }>`,
+  );
+
+  let firstEvaluation = true;
+
+  let ourIndexInArrayOfAllCitations = -1;
+
+  return (
+    <impure
+      fun={(ctx) => {
+        const state = getState(ctx);
+
+        if (state === null) {
+          l.error(
+            ctx,
+            `${renderedMacro} macro must only be used inside a ${
+              Colors.yellow(`<BibScope>`)
+            } macro.`,
+          );
+          return ctx.halt();
+        }
+
+        for (const it of items) {
+          if (!state.items.has(it)) {
+            l.warn(ctx, `Tried to cite unknown itemID: ${styleCiteId(it)}`);
+            l.at(ctx);
+            return <><exps x={children}/>{nbsp}{"[?]"}</>;
+          }
+        }
+
+        if (firstEvaluation) {
+          firstEvaluation = false;
+
+          if (items.length === 0) {
+            l.warn(
+              ctx,
+              `Each ${renderedMacro} should cite at least one item.`,
+            );
+            l.at(ctx);
+          }
+
+          // If the bibliography did not render yet, we are good.
+          // We register the citation and then do nothing until the bibliography has rendered.
+          if (state.stillCollecting) {
+            ourIndexInArrayOfAllCitations = state.citations.length;
+
+            state.citations.push({
+              rendered: "[?]",
+              citation: {
+                citationID: `citation${state.citations.length}`,
+                citationItems: items.map((id) => ({
+                  id,
+                })),
+                properties: {
+                  noteIndex: 0,
+                },
+              },
+            });
+
+            return null;
+          } else {
+            // Oh no, the bibliography was alrady rendered withot us.
+            l.warn(
+              ctx,
+              `Added a citation after the corresponding bibliography has already been rendered.`,
+            );
+            l.logGroup(ctx, () => {
+              l.warn(
+                ctx,
+                `To understand this warning and how to fix it, you need to understand how Macromania allows postponing macro evaluations until a later point.`,
+              );
+              l.warn(
+                ctx,
+                `Every ${renderedMacro} macro's first evaluation attempt must happen before the first ${
+                  Colors.yellow("<Bibliography/>")
+                } macro of its ${
+                  Colors.yellow("<BibScope>")
+                } finishes rendering.`,
+              );
+              l.warn(
+                ctx,
+                `The ${
+                  Colors.yellow("<Bibliography/>")
+                } macro attempts to render as late as possible: only when the Macromania ${
+                  Colors.yellow("ctx.mustMakeProgress")
+                } flag is set will the bibliography be finalized.`,
+              );
+              l.warn(
+                ctx,
+                `Unfortunately, this ${renderedMacro} macro has not been evaluated even once by that time. And that is the problem you now need to fix. Good luck <3.`,
+              );
+            });
+            l.at(ctx);
+            return null;
+          }
+        } else {
+          // Not the first evaluation.
+          if (state.stillCollecting) {
+            // Until the bibliography has rendered (and updated the scope state
+            // with information on how to render this very reference), we do nothing.
+            return null;
+          } else {
+            // The state contains information on how to render this citation. Let's do that.
+
+            if (ourIndexInArrayOfAllCitations === -1) {
+              // This citation was evaluated too late. We already printed a warning.
+              return (
+                <>
+                  <Span clazz="bibText">
+                    <exps x={children} />
+                  </Span>
+                  {nbsp}
+                  <Span clazz="bibCitation">{`[?]`}</Span>
+                </>
+              );
+            } else {
+              const info = state.citations[ourIndexInArrayOfAllCitations];
+              const ourId = info.citation.citationItems.map((item) => item.id)
+                .join("");
+              const rendered = info.rendered;
+
+              return (
+                <R n={ourId}>
+                  <Span clazz="bibText">
+                    <exps x={children} />
+                  </Span>
+                  {nbsp}
+                  <Span clazz="bibCitation">{rendered}</Span>
+                </R>
+              );
+            }
+          }
+        }
+      }}
+    />
+  );
+}
+
+/**
+ * Render a bibliography for the current BibScope.
+ * Each BibScope must contain at least one Bibliography macro.
+ */
+export function Bibliography(): Expression {
+  return (
+    <impure
+      fun={(ctx) => {
+        const state = getState(ctx);
+
+        if (state === null) {
+          l.error(
+            ctx,
+            `${
+              Colors.yellow("<Bibliography/>")
+            } macro must only be used inside a ${
+              Colors.yellow(`<BibScope>`)
+            } macro.`,
+          );
+          return ctx.halt();
+        }
+
+        if (state.stillCollecting && !ctx.mustMakeProgress) {
+          // Delay evaluation as long as possible, so that all citations make it in.
+          return null;
+        }
+
+        // The first bibliography gets to issue DefRef definitions, all remaining bibliographies then use those.
+        const first = state.stillCollecting;
+        state.stillCollecting = false;
+
+        // Inform citeproc about all references.
+        for (let i = 0; i < state.citations.length; i++) {
+          const citation = state.citations[i];
+
+          // console.log("qwert", citation.citation,
+          // state.citations.slice(0, i).map((
+          //   c,
+          //   j,
+          // ) => [c.citation.citationID, j + 1]),
+          // [],);
+
+          // deno-lint-ignore no-explicit-any
+          const result = (state.citeproc as any).processCitationCluster(
+            citation.citation,
+            state.citations.slice(0, i).map((
+              c,
+              j,
+            ) => [c.citation.citationID, j + 1]),
+            [],
+          );
+
+          // console.log(result);
+
+          const citation_errors = result[0].citation_errors as unknown[];
+
+          const updates = result[1] as ([
+            number, /* index in state.citations */
+            string, /* rendered citation */
+          ])[];
+          for (const [citationsIndex, rendered] of updates) {
+            state.citations[citationsIndex].rendered = rendered;
+          }
+        }
+
+        // Obtain bibliography data from citeproc.
+        // deno-lint-ignore no-explicit-any
+        const bibliography = (state.citeproc as any).makeBibliography();
+
+        const { linespacing, entryspacing, hangingindent } = bibliography[0];
+        const secondFieldAlign: false | "flush" | "margin" =
+          bibliography[0]["second-field-align"];
+
+        let spacingSeparator = "";
+        for (let i = 0; i < linespacing * entryspacing; i++) {
+          spacingSeparator = `${spacingSeparator}<br />`;
+        }
+
+        // Render the bibliography.
+        const ret: Expression[] = [];
+
+        // A map from itemIDs to their csl-left-margin (if secondFieldAlign is truthy, unused otherwise).
+        const leftMargins: Map<string, string> = new Map();
+
+        for (let i = 0; i < bibliography[1].length; i++) {
+          if (i !== 0) {
+            ret.push(spacingSeparator);
+          }
+
+          const entryId: string = bibliography[0].entry_ids[i][0];
+          const rendered: string = bibliography[1][i];
+          const renderedRaw = rendered
+            .slice(0, -7) // remove trailing `</div>`
+            .replace(`<div class="csl-entry">`, "");
+          const href = itemIdToHref(ctx, entryId);
+
+          if (secondFieldAlign) {
+            const [pre_, post_] = renderedRaw.split("</div>", 2);
+            const pre = `${pre_}</div>`;
+            const post = `${post_}</div>`;
+
+            leftMargins.set(entryId, pre);
+
+            const def = (
+              <Def
+                n={entryId}
+                r={post}
+                defTag={(inner, id) => <exps x={inner} />}
+                noHighlight
+                fake={!first}
+                href={href}
+                noLink={!href}
+                noTooltipOnDefHover
+                refClass="bib"
+              />
+            );
+
+            ret.push(
+              <PreviewScope>
+                <Span id={entryId}>{pre}</Span>
+                {def}
+              </PreviewScope>,
+            );
+          } else {
+            ret.push(
+              <PreviewScope>
+                <Def
+                  n={entryId}
+                  r={renderedRaw}
+                  defTag={(inner, id) => (
+                    <Div id={id}>
+                      <exps x={inner} />
+                    </Div>
+                  )}
+                  noHighlight
+                  fake={!first}
+                  href={href}
+                  noLink={!href}
+                  noTooltipOnDefHover
+                  refClass="bib"
+                />
+              </PreviewScope>,
+            );
+          }
+        }
+
+        // For each citation that cites more than a single item, create a Def for that citation to use.
+
+        const idsForWhichWeAlreadyCreatedADef: Set<string> = new Set();
+
+        if (first) {
+          for (let i = 0; i < state.citations.length; i++) {
+            const citation = state.citations[i].citation;
+            if (citation.citationItems.length > 1) {
+              let idConcat = "";
+
+              citation.citationItems.forEach((item) => {
+                idConcat = `${idConcat}${item.id}`;
+              });
+
+              const bibliographyOrdering: string[] = bibliography[0].entry_ids
+                // deno-lint-ignore no-explicit-any
+                .map((idArr: any) => idArr[0]);
+
+              const sorted = [...citation.citationItems];
+              sorted.sort((a, b) => {
+                const indexOfA = bibliographyOrdering.indexOf(a.id);
+                const indexOfB = bibliographyOrdering.indexOf(b.id);
+
+                return indexOfA < indexOfB ? -1 : (indexOfA > indexOfB ? 1 : 0);
+              });
+
+              const refs: Expression[] = [];
+              sorted.forEach((item, j) => {
+                if (j !== 0) {
+                  refs.push(spacingSeparator);
+                }
+
+                if (secondFieldAlign) {
+                  refs.push(
+                    <>
+                      <Span id={item.id}>{leftMargins.get(item.id)!}</Span>
+                      <R n={item.id} noPreview />
+                    </>,
+                  );
+                } else {
+                  refs.push(
+                    <Div clazz="csl-entry">
+                      <R n={item.id} noPreview />
+                    </Div>,
+                  );
+                }
+              });
+
+              if (idsForWhichWeAlreadyCreatedADef.has(idConcat)) {
+                continue;
+              }
+              idsForWhichWeAlreadyCreatedADef.add(idConcat);
+
+              const href = itemIdToHref(ctx, citation.citationItems[0].id);
+              ret.push(
+                <omnomnom>
+                  <Def
+                    n={idConcat}
+                    defTag={(inner, id) => {
+                      if (href) {
+                        return (
+                          <Div id={id} clazz="csl-entry" children={inner} />
+                        );
+                      } else {
+                        return (
+                          <Div id={id} clazz="csl-entry">
+                            <Span children={inner} />
+                          </Div>
+                        );
+                      }
+                    }}
+                    noHighlight
+                    noTooltipOnDefHover
+                    href={href}
+                    noLink={!href}
+                    preview={<exps x={refs} />}
+                    refClass="bib"
+                  />
+                </omnomnom>,
+              );
+            }
+          }
+        }
+
+        return (
+          <PreviewScopePushWrapper
+            wrapper={(ctx, exp) => (
+              <Div
+                clazz={`csl-bib-body${hangingindent ? " hangingindent" : ""}${
+                  secondFieldAlign ? ` ${secondFieldAlign}` : ""
+                }`}
+              >
+                <exps x={exp} />
+              </Div>
+            )}
+          >
+            <Div
+              clazz={`csl-bib-body${hangingindent ? " hangingindent" : ""}${
+                secondFieldAlign ? ` ${secondFieldAlign}` : ""
+              }`}
+            >
+              <exps x={ret} />
+            </Div>
+          </PreviewScopePushWrapper>
+        );
+      }}
+    />
+  );
+}
+
+function itemIdToHref(ctx: Context, itemId: string): Expression | undefined {
+  const state = getState(ctx)!;
+  const itemDeclaration = state.items.get(itemId)!;
+
+  const href: Expression | undefined = itemDeclaration.asset !== undefined
+    ? <ResolveAsset asset={itemDeclaration.asset} />
+    : (itemDeclaration.href ? itemDeclaration.href : undefined);
+
+  return href;
+}
+
+// /**
+//  * The state we track for each citation in the bibscope.
+//  */
+// type CitationState = {
+//   /**
+//    * The citation object to pass to citeproc-js.
+//    */
+//   citation: Citation;
+//   /**
+//    * The rendered citation to put into the document.
+//    * Starts out with a dummy value (`"[?]"`).
+//    */
+//   rendered: string;
+// };
+
+// /**
+//  * A citation object to pass to citeproc-js.
+//  *
+//  * See https://citeproc-js.readthedocs.io/en/latest/csl-json/markup.html#citations
+//  */
+// type Citation = {
+//   citationID: string; // A unique id (within a bibscope) that identifies this particular Citation.
+//   citationItems: CitationItem[];
+//   properties: {
+//     /**
+//      * Indicates the footnote number in which the citation is located within the document. Citations within the main text of the document have a noteIndex of zero.
+//      */
+//     noteIndex: number;
+//   };
+// };
+
+export function styleCiteId(id: string): string {
+  return Colors.brightYellow(id);
 }

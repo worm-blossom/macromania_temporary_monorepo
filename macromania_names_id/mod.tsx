@@ -156,12 +156,12 @@ export function hrefToName(ctx: Context, name: string, replacementId?: string): 
  * If a `replacementId` is supplied, uses it instead of the registered id in the link.
  */
 export function IdA(
-  props: AProps & { name: string; children?: Expressions, replacementId?: string },
+  props: AProps & { name: string; children?: Expressions, replacementId?: string; forceHref?: Expression },
 ): Expression {
   return (
     <impure
       fun={(ctx) => {
-        const href = hrefToName(ctx, props.name, props.replacementId);
+        const href = props.forceHref ? props.forceHref : hrefToName(ctx, props.name, props.replacementId);
         if (href === null) {
           if (ctx.mustMakeProgress()) {
             l.warn(

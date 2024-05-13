@@ -137,6 +137,8 @@ type DefInfo = {
   numbering?: NumberingProps;
   noPreview?: boolean;
   noHighlight?: boolean;
+  href?: Expression;
+  noTooltipOnDefHover?: boolean;
 };
 
 function defInfoR(info: DefInfo, name: string): Expression {
@@ -393,7 +395,11 @@ export type DefProps = {
    */
   noPreview?: boolean;
   /**
-   * Set this to true to *not* highlight defenitions and references to hover, even if there is a preview.
+   * Set this to true to not *display* a preview tooltip when hovering over the *definition* itself.
+   */
+  noTooltipOnDefHover?: boolean;
+  /**
+   * Set this to true to *not* highlight definitions and references to hover, even if there is a preview.
    * When `noPreview` is set to true, then no highlighting occurs anyways.
    */
   noHighlight?: boolean;
@@ -410,6 +416,10 @@ export type DefProps = {
    * Give the definition and all references a `data-preview-wide` attribute.
    */
   wide?: boolean;
+  /**
+   * Instead of linking to the definition site itself, have the def and its references link elsewhere.
+   */
+  href?: Expression;
   /**
    * The display text of the definition.
    *
@@ -483,6 +493,8 @@ export function Def(props: DefProps): Expression {
           numbering: props.numbering,
           noPreview: props.noPreview,
           noHighlight: props.noHighlight,
+          href: props.href,
+          noTooltipOnDefHover: props.noTooltipOnDefHover,
         };
 
         if (!props.fake) {
@@ -504,7 +516,7 @@ export function Def(props: DefProps): Expression {
           defData["preview-class"] = "wide";
         }
 
-        const tag = props.noLink ? <exps x={props.children} /> : linkTag({
+        const tag = linkTag({
           ctx,
           isRef: false,
           name: props.n,
@@ -514,6 +526,7 @@ export function Def(props: DefProps): Expression {
           data: defData,
           children: props.children,
           queryParams: [],
+          noLink: props.noLink,
         });
 
         if (isMathMode(ctx) && props.math) {
@@ -815,6 +828,7 @@ function linkTag(opts: {
   replacementId?: string;
   noPreview?: boolean;
   extraData?: Record<string, Expression>;
+  noLink?: boolean;
 }): Expression | null {
   // Add dependencies that are required on all pages that contain any refs.
   const config = getConfig(opts.ctx);
@@ -909,7 +923,8 @@ function linkTag(opts: {
     data!,
     opts.name,
     true,
-    !(opts.info.noPreview || opts.noPreview),
+    !(opts.info.noPreview || opts.noPreview) &&
+      (!(opts.info.noTooltipOnDefHover && !opts.isRef)),
     !opts.info.noHighlight,
     opts.queryParams,
     opts.replacementId,
@@ -933,7 +948,9 @@ function linkTag(opts: {
     : <exps x={exps} />;
 
   if (isMathMode(opts.ctx) || opts.info.ensureMath) {
-    const href = hrefToName(opts.ctx, opts.name, opts.replacementId);
+    const href = opts.info.href
+      ? opts.info.href
+      : hrefToName(opts.ctx, opts.name, opts.replacementId);
 
     if (href === null) {
       if (opts.ctx.mustMakeProgress()) {
@@ -950,6 +967,7 @@ function linkTag(opts: {
           data: finalData,
           children,
           ensureMath: opts.info.ensureMath,
+          noLink: opts.noLink,
         });
       } else {
         return null;
@@ -961,30 +979,47 @@ function linkTag(opts: {
         data: finalData,
         children,
         ensureMath: opts.info.ensureMath,
+        noLink: opts.noLink,
       });
     }
   } else {
-    return (
-      <IdA
-        clazz={clazz}
-        data={finalData}
-        name={opts.name}
-        children={children}
-        replacementId={opts.replacementId}
-      />
-    );
+    if (opts.noLink) {
+      return <exps x={children} />;
+    } else {
+      return (
+        <IdA
+          clazz={clazz}
+          data={finalData}
+          name={opts.name}
+          children={children}
+          replacementId={opts.replacementId}
+          forceHref={opts.info.href}
+        />
+      );
+    }
   }
 }
 
 function mathLink(
-  { clazz, data, url, children, ensureMath }: {
+  { clazz, data, url, children, ensureMath, noLink }: {
     url: Expression;
     clazz?: Expression[] | Expression;
     data?: Record<string, Expression>;
     children?: Expressions;
     ensureMath?: boolean;
+    noLink?: boolean;
   },
 ): Expression {
+  if (noLink) {
+    return ensureMath
+      ? (
+        <M>
+          <exps x={children} />
+        </M>
+      )
+      : <exps x={children} />;
+  }
+
   let exp = <MHref url={url} children={children} />;
   exp = data === undefined ? exp : <MData data={data}>{exp}</MData>;
   exp = clazz === undefined ? exp : <MClass clazz={clazz}>{exp}</MClass>;

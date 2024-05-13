@@ -187,6 +187,10 @@ export type HsectionProps =
      * The title of the section.
      */
     title: Expression;
+    /**
+     * Do not render any numbering for this section. Do not count the section for numbering purposes either.
+     */
+    noNumbering?: boolean;
     // /**
     //  * A short version of the title, to be used in space-constrained
     //  * tables of contents.
@@ -329,7 +333,7 @@ export function getHsectionCounter(ctx: Context, i: number): Counter {
 
 export function Hsection(props: HsectionProps): Expression {
   const id = props.n;
-  const { children, title } = props;
+  const { children, title, noNumbering } = props;
 
   let first = true;
 
@@ -353,7 +357,9 @@ export function Hsection(props: HsectionProps): Expression {
           const Hmacro = levelToHmacro(state.level);
 
           const counter = getHsectionCounter(ctx, state.level);
-          counter.increment(ctx);
+          if (!noNumbering) {
+            counter.increment(ctx);
+          }
 
           const numberingInfo = configNaming(config, state.level);
           const numbering = counter.getFullValue(ctx);
@@ -374,14 +380,16 @@ export function Hsection(props: HsectionProps): Expression {
                 defTag: (children, id) => Hmacro({ id, children }),
                 children: (
                   <>
-                    {config.titleRenderPre!(ctx, numbering)}
+                    {noNumbering ? "" : config.titleRenderPre!(ctx, numbering)}
                     {title}
-                    {config.titleRenderPost!(ctx, numbering)}
+                    {noNumbering ? "" : config.titleRenderPost!(ctx, numbering)}
                   </>
                 ),
                 r: title,
               })}
-              <Section data={{hsection: props.n}}><exps x={children} /></Section>
+              <Section data={{ hsection: props.n }}>
+                <exps x={children} />
+              </Section>
             </>
           );
         }}
