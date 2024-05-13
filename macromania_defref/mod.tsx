@@ -547,7 +547,7 @@ export function Def(props: DefProps): Expression {
         let explicitPreviewExp: Expression = "";
 
         // Register preview.
-        if (!props.noPreview) {
+        if (!props.noPreview && !props.fake) {
           if (props.preview === undefined) {
             registerPreview(ctx, {
               name: props.n,
