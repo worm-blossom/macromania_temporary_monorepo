@@ -136,6 +136,12 @@ export function RenderExpression(
   );
 }
 
+export function RenderExpressions(
+  { attr, value }: { attr: string; value: Expressions },
+): Expression {
+  return <RenderExpression attr={attr} value={<exps x={value} />} />;
+}
+
 // "void element" is the official name for "self-closing tags".
 export function RenderVoidElement(
   { name, attrs }: { name: string; attrs: Expression },

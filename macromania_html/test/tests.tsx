@@ -11,8 +11,11 @@ import {
   Body,
   Br,
   Canvas,
+  Caption,
   Cite,
   Code,
+  Col,
+  Colgroup,
   Data,
   Dd,
   Del,
@@ -67,9 +70,16 @@ import {
   Style,
   Sub,
   Sup,
+  Table,
+  Tbody,
+  Td,
   Template,
+  Tfoot,
+  Th,
+  Thead,
   Time,
   Title,
+  Tr,
   U,
   Ul,
   Var,
@@ -492,12 +502,36 @@ Deno.test("canvas", async () => {
   })();
 });
 
+Deno.test("caption", async () => {
+  await testGlobalNonVoid(Caption, "caption")();
+});
+
 Deno.test("cite", async () => {
   await testGlobalNonVoid(Cite, "cite")();
 });
 
 Deno.test("code", async () => {
   await testGlobalNonVoid(Code, "code")();
+});
+
+Deno.test("col", async () => {
+  await testGlobalNonVoid(Col, "col")();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Col span={17}></Col>);
+    assertEquals(got, `<col span="17"></col>`);
+  })();
+});
+
+Deno.test("colgroup", async () => {
+  await testGlobalNonVoid(Colgroup, "colgroup")();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Colgroup span={17}></Colgroup>);
+    assertEquals(got, `<colgroup span="17"></colgroup>`);
+  })();
 });
 
 Deno.test("data", async () => {
@@ -1180,6 +1214,42 @@ Deno.test("sup", async () => {
   await testGlobalNonVoid(Sup, "sup")();
 });
 
+Deno.test("table", async () => {
+  await testGlobalNonVoid(Table, "table")();
+});
+
+Deno.test("tbody", async () => {
+  await testGlobalNonVoid(Tbody, "tbody")();
+});
+
+Deno.test("td", async () => {
+  await testGlobalNonVoid(Td, "td")();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Td colspan={17}></Td>);
+    assertEquals(got, `<td colspan="17"></td>`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Td rowspan={17}></Td>);
+    assertEquals(got, `<td rowspan="17"></td>`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Td headers="foo"></Td>);
+    assertEquals(got, `<td headers="foo"></td>`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Td headers={["foo", "bar"]}></Td>);
+    assertEquals(got, `<td headers="foo bar"></td>`);
+  })();
+});
+
 Deno.test("template", async () => {
   await testGlobalNonVoid(Template, "template")();
 
@@ -1204,6 +1274,54 @@ Deno.test("template", async () => {
   })();
 });
 
+Deno.test("tfoot", async () => {
+  await testGlobalNonVoid(Tfoot, "tfoot")();
+});
+
+Deno.test("th", async () => {
+  await testGlobalNonVoid(Th, "th")();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Th colspan={17}></Th>);
+    assertEquals(got, `<th colspan="17"></th>`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Th rowspan={17}></Th>);
+    assertEquals(got, `<th rowspan="17"></th>`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Th headers="foo"></Th>);
+    assertEquals(got, `<th headers="foo"></th>`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Th headers={["foo", "bar"]}></Th>);
+    assertEquals(got, `<th headers="foo bar"></th>`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Th scope="row"></Th>);
+    assertEquals(got, `<th scope="row"></th>`);
+  })();
+
+  await (async () => {
+    const ctx = new Context();
+    const got = await ctx.evaluate(<Th abbr="foo"></Th>);
+    assertEquals(got, `<th abbr="foo"></th>`);
+  })();
+});
+
+Deno.test("thead", async () => {
+  await testGlobalNonVoid(Thead, "thead")();
+});
+
 Deno.test("time", async () => {
   await testGlobalNonVoid(Time, "time")();
 
@@ -1216,6 +1334,10 @@ Deno.test("time", async () => {
 
 Deno.test("title", async () => {
   await testGlobalNonVoid(Title, "title")();
+});
+
+Deno.test("tr", async () => {
+  await testGlobalNonVoid(Tr, "tr")();
 });
 
 Deno.test("u", async () => {
