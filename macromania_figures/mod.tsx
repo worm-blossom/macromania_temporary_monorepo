@@ -108,7 +108,15 @@ export function makeFigureMacro(
                       wrapperTagProps ? wrapperTagProps : {};
                     figureProps.id = id;
                     figureProps.children = inner;
-                    figureProps.clazz = isTheoremLike ? "theoremlike" : "";
+                    if (isTheoremLike) {
+                      if (figureProps.clazz === undefined) {
+                        figureProps.clazz = "theoremlike";
+                      } else if (Array.isArray(figureProps.clazz)) {
+                        figureProps.clazz.push("theoremlike");
+                      } else {
+                        figureProps.clazz = <><exps x={figureProps.clazz}/> theoremlike</>
+                      }
+                    }
                     return HtmlFigure(figureProps);
                   },
                   noLink: true,
