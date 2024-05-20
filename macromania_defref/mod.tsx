@@ -907,7 +907,7 @@ function linkTag(opts: {
         opts.mode === "rc"
           ? opts.info.numbering.info.r
           : opts.info.numbering.info.rb,
-        " ",
+        "&nbsp;",
         render(opts.ctx, opts.info.numbering.numbering),
       ];
   }

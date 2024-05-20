@@ -188,6 +188,10 @@ export type BibItemDeclaration = {
    * Should the item be included in the bibliography even if it does not get cited? Defaults to false.
    */
   includeEvenIfNotCited?: boolean;
+  /**
+   * A blurb to show in the citation preview. For typical scientific works, this would be the abstract.
+   */
+  blurb?: Expressions;
 };
 
 /**
@@ -198,6 +202,7 @@ type ItemDeclaration = {
   asset?: string[];
   item: BibItem;
   includeEvenIfNotCited?: boolean;
+  blurb?: Expressions;
 };
 
 /**
@@ -256,6 +261,7 @@ export function BibScope(
             asset: itemDeclaration.asset,
             includeEvenIfNotCited: itemDeclaration.includeEvenIfNotCited,
             item: actualItem,
+            blurb: itemDeclaration.blurb,
           };
 
           itemMap.set(`${actualItem.id}`, decl);
@@ -372,7 +378,13 @@ export function Bib({ item, children }: CiteProps): Expression {
           if (!state.items.has(it)) {
             l.warn(ctx, `Tried to cite unknown itemID: ${styleCiteId(it)}`);
             l.at(ctx);
-            return <><exps x={children}/>{nbsp}{"[?]"}</>;
+            return (
+              <>
+                <exps x={children} />
+                {nbsp}
+                {"[?]"}
+              </>
+            );
           }
         }
 
@@ -407,7 +419,7 @@ export function Bib({ item, children }: CiteProps): Expression {
 
             return null;
           } else {
-            // Oh no, the bibliography was alrady rendered withot us.
+            // Oh no, the bibliography was alrady rendered without us.
             l.warn(
               ctx,
               `Added a citation after the corresponding bibliography has already been rendered.`,
@@ -519,13 +531,6 @@ export function Bibliography(): Expression {
         for (let i = 0; i < state.citations.length; i++) {
           const citation = state.citations[i];
 
-          // console.log("qwert", citation.citation,
-          // state.citations.slice(0, i).map((
-          //   c,
-          //   j,
-          // ) => [c.citation.citationID, j + 1]),
-          // [],);
-
           // deno-lint-ignore no-explicit-any
           const result = (state.citeproc as any).processCitationCluster(
             citation.citation,
@@ -536,9 +541,7 @@ export function Bibliography(): Expression {
             [],
           );
 
-          // console.log(result);
-
-          const citation_errors = result[0].citation_errors as unknown[];
+          // const citation_errors = result[0].citation_errors as unknown[];
 
           const updates = result[1] as ([
             number, /* index in state.citations */
@@ -579,6 +582,7 @@ export function Bibliography(): Expression {
             .slice(0, -7) // remove trailing `</div>`
             .replace(`<div class="csl-entry">`, "");
           const href = itemIdToHref(ctx, entryId);
+          const blurb = itemIdToBlurb(ctx, entryId);
 
           if (secondFieldAlign) {
             const [pre_, post_] = renderedRaw.split("</div>", 2);
@@ -598,34 +602,48 @@ export function Bibliography(): Expression {
                 noLink={!href}
                 noTooltipOnDefHover
                 refClass="bib"
+                preview={blurb
+                  ? (
+                    <>
+                      {renderedRaw}
+                      <Div clazz="bibBlurb">{blurb}</Div>
+                    </>
+                  )
+                  : renderedRaw}
               />
             );
 
             ret.push(
-              <PreviewScope>
+              <>
                 <Span id={entryId}>{pre}</Span>
                 {def}
-              </PreviewScope>,
+              </>
             );
           } else {
             ret.push(
-              <PreviewScope>
-                <Def
-                  n={entryId}
-                  r={renderedRaw}
-                  defTag={(inner, id) => (
-                    <Div id={id}>
-                      <exps x={inner} />
-                    </Div>
-                  )}
-                  noHighlight
-                  fake={!first}
-                  href={href}
-                  noLink={!href}
-                  noTooltipOnDefHover
-                  refClass="bib"
-                />
-              </PreviewScope>,
+              <Def
+                n={entryId}
+                r={renderedRaw}
+                defTag={(inner, id) => (
+                  <Div id={id}>
+                    <exps x={inner} />
+                  </Div>
+                )}
+                noHighlight
+                fake={!first}
+                href={href}
+                noLink={!href}
+                noTooltipOnDefHover
+                refClass="bib"
+                preview={blurb
+                  ? (
+                    <>
+                      {renderedRaw}
+                      <Div clazz="bibBlurb">{blurb}</Div>
+                    </>
+                  )
+                  : renderedRaw}
+              />,
             );
           }
         }
@@ -751,36 +769,14 @@ function itemIdToHref(ctx: Context, itemId: string): Expression | undefined {
   return href;
 }
 
-// /**
-//  * The state we track for each citation in the bibscope.
-//  */
-// type CitationState = {
-//   /**
-//    * The citation object to pass to citeproc-js.
-//    */
-//   citation: Citation;
-//   /**
-//    * The rendered citation to put into the document.
-//    * Starts out with a dummy value (`"[?]"`).
-//    */
-//   rendered: string;
-// };
+function itemIdToBlurb(ctx: Context, itemId: string): Expression | undefined {
+  const state = getState(ctx)!;
+  const itemDeclaration = state.items.get(itemId)!;
 
-// /**
-//  * A citation object to pass to citeproc-js.
-//  *
-//  * See https://citeproc-js.readthedocs.io/en/latest/csl-json/markup.html#citations
-//  */
-// type Citation = {
-//   citationID: string; // A unique id (within a bibscope) that identifies this particular Citation.
-//   citationItems: CitationItem[];
-//   properties: {
-//     /**
-//      * Indicates the footnote number in which the citation is located within the document. Citations within the main text of the document have a noteIndex of zero.
-//      */
-//     noteIndex: number;
-//   };
-// };
+  return itemDeclaration.blurb === undefined
+    ? undefined
+    : <exps x={itemDeclaration.blurb} />;
+}
 
 export function styleCiteId(id: string): string {
   return Colors.brightYellow(id);
