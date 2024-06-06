@@ -532,6 +532,9 @@ export function Delimiters(
 
         state.rainbowCount = (state.rainbowCount + 1) %
           config.colorsOfTheRainbow!;
+        if (state.rainbowCount < 0) {
+          state.rainbowCount += config.colorsOfTheRainbow!;
+        }
       }}
       post={(ctx) => {
         const state = getState(ctx);
@@ -539,6 +542,9 @@ export function Delimiters(
 
         state.rainbowCount = (state.rainbowCount - 1) %
           config.colorsOfTheRainbow!;
+        if (state.rainbowCount < 0) {
+          state.rainbowCount += config.colorsOfTheRainbow!;
+        }
       }}
     >
       <impure

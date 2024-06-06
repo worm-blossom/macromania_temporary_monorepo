@@ -396,13 +396,13 @@ export function FunctionTypeNamed(
 /**
  * The type to indicate fresh ids that should be bound. Use a string if the id itself can be used as a DefRef `n` prop, use a pair of the id first and the desired `n` prop second otherwise.
  */
-export type FreshId = string | [string, string];
+export type FreshId = string | [Expression, string];
 
 function freshIdN(id: FreshId): string {
   return Array.isArray(id) ? id[1] : id;
 }
 
-function freshIdId(id: FreshId): string {
+function freshIdId(id: FreshId): Expression {
   return Array.isArray(id) ? id[0] : id;
 }
 
@@ -1494,7 +1494,7 @@ export type IfProps = {
   /**
    * The body (run if the condition is true).
    */
-  body?: Expressions[];
+  body?: MaybeCommented<Expressions>[];
 };
 
 /**
@@ -1521,7 +1521,7 @@ export type ElseProps = {
   /**
    * The body.
    */
-  body?: Expressions[];
+  body?: MaybeCommented<Expressions>[];
 };
 
 /**
@@ -1542,22 +1542,26 @@ export function Else({ singleline, body }: ElseProps): Expression {
 
 export type ElseIfProps = {
   /**
+   * The condition.
+   */
+  cond: Expressions;
+  /**
    * Whether to not render the body one line per expression.
    */
   singleline?: boolean;
   /**
    * The body.
    */
-  body?: Expressions[];
+  body?: MaybeCommented<Expressions>[];
 };
 
 /**
  * An `else` statement (you probably want to place this after an `If` macro).
  */
-export function ElseIf({ singleline, body }: ElseIfProps): Expression {
+export function ElseIf({ singleline, cond, body }: ElseIfProps): Expression {
   return (
     <>
-      <Keyword>else</Keyword> <Keyword>if</Keyword>{" "}
+      <Keyword>else</Keyword> <Keyword>if</Keyword> <exps x={cond} />{" "}
       <Delimited
         multiline={!singleline}
         delims={["{", "}"]}
@@ -1575,7 +1579,7 @@ export type MatchProps = {
   /**
    * The cases. The first pair member is the pattern, the second is the corresponding body - rendered as a block if it is an array.
    */
-  cases: MaybeCommented<[Expressions, (Expression | Expression[])]>[];
+  cases: MaybeCommented<[Expressions, (Expression | MaybeCommented<Expressions>[])]>[];
 };
 
 /**
@@ -1661,7 +1665,7 @@ export type WhileProps = {
   /**
    * The body (run while the condition is true).
    */
-  body?: Expressions[];
+  body?: MaybeCommented<Expressions>[];
 };
 
 /**
@@ -1688,7 +1692,7 @@ export type LoopProps = {
   /**
    * The body (run while the condition is true).
    */
-  body?: Expressions[];
+  body?: MaybeCommented<Expressions>[];
 };
 
 /**
@@ -1727,7 +1731,7 @@ export type ForRawProps = {
   /**
    * The body (run once for each value of the iterator).
    */
-  body?: Expressions[];
+  body?: MaybeCommented<Expressions>[];
 };
 
 /**
@@ -1776,7 +1780,7 @@ export type ForProps = {
   /**
    * The body (run once for each value of the iterator).
    */
-  body?: Expressions[];
+  body?: MaybeCommented<Expressions>[];
 };
 
 /**
@@ -2459,7 +2463,6 @@ export function Enum(
                 >
                   {fields.length === 0 ? "" : (
                     <>
-                      {" "}
                       <Delimited
                         multiline={variant.multilineFields}
                         delims={["(", ")"]}
