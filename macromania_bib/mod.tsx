@@ -442,8 +442,8 @@ export function Bib({ item, children }: CiteProps): Expression {
                 `The ${
                   Colors.yellow("<Bibliography/>")
                 } macro attempts to render as late as possible: only when the Macromania ${
-                  Colors.yellow("ctx.mustMakeProgress")
-                } flag is set will the bibliography be finalized.`,
+                  Colors.yellow("ctx.mustMakeProgress()")
+                } function returns ${Colors.yellow("true")} will the bibliography be finalized.`,
               );
               l.warn(
                 ctx,
@@ -518,7 +518,7 @@ export function Bibliography(): Expression {
           return ctx.halt();
         }
 
-        if (state.stillCollecting && !ctx.mustMakeProgress) {
+        if (state.stillCollecting && !ctx.mustMakeProgress()) {
           // Delay evaluation as long as possible, so that all citations make it in.
           return null;
         }
