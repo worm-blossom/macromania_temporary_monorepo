@@ -74,6 +74,10 @@ export type FigProps = {
    */
   wrapperTagProps?: TagProps;
   /**
+   * Should previews of this figure be wide?
+   */
+  wide?: boolean;
+  /**
    * The main contents of the figure.
    */
   children?: Expressions;
