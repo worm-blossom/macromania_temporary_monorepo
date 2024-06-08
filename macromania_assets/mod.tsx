@@ -25,11 +25,23 @@ type AssetsState = {
    * written.
    */
   processed: Map<string, string[]>;
+  /**
+   * The physical file system path to the asset directory.
+   */
+  realDir: string;
 };
 
 const [getState, _setState] = createSubstate<AssetsState>(() => ({
   processed: new Map(),
+  realDir: "asset directory not yet set",
 }));
+
+/**
+ * Get the filesystem path where Macromania will try to locate assets.
+ */
+export function getAssetDirPhysicalPath(ctx: Context) {
+  return getState(ctx).realDir;
+}
 
 /**
  * Given a sequence of names in the `assets` of the `Assets` macro, returns
@@ -104,11 +116,14 @@ export function Assets(
   return (
     <impure
       fun={async (ctx: Context) => {
+        const state = getState(ctx);
+
         // Cache the outCwd so that later changes to it dont do anything funky.
         const currentOutCwd = outCwd(ctx);
 
         const cwd = Deno.cwd();
         const realDir = path.join(cwd, ...input);
+        state.realDir = realDir;
         const realOutDir = path.join(
           outMount(ctx),
           ...currentOutCwd.components,

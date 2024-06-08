@@ -1,4 +1,6 @@
-import { Html, Link, LinkProps, Script } from "./deps.ts";
+import { posixPath } from "./deps.ts";
+
+import { Html, Link, LinkProps, Script, getAssetDirPhysicalPath, styleFile } from "./deps.ts";
 import { Body } from "./deps.ts";
 import { Title } from "./deps.ts";
 import { hrefTo } from "./deps.ts";
@@ -287,6 +289,7 @@ export function Html5(
 
             if (resolved === null) {
               if (ctx.mustMakeProgress()) {
+                const realDir = getAssetDirPhysicalPath(ctx);
                 l.warn(ctx, `Failed to resolve an html-utils dependency:`);
                 l.logGroup(ctx, () => {
                   l.warn(ctx, `Dependency: ${styleAssetPath(info.path)}`);
@@ -299,6 +302,9 @@ export function Html5(
                   if (info.debugMessage) {
                     l.warn(ctx, info.debugMessage);
                   }
+                  l.warn(ctx, `The asset directory is located at ${styleFile(realDir)} and assets are looked up relative to there.`);
+                  l.warn(ctx, `Your dependency was expected at ${styleFile(posixPath.join(realDir, ...info.path))}`);
+                  l.warn(ctx, `If that file actually exists yet this errors, you probably need to modify ${Colors.yellow("assets")} prop of the ${Colors.yellow("Assets")} macro. Explaining that is out of scope for this warning, you'll need to look up how that one works elsewhere <3.`);
                   l.at(ctx);
                 });
               } else {
