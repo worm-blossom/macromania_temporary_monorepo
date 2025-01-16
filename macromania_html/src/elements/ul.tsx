@@ -1,4 +1,4 @@
-import { Expression, Expressions } from "../../deps.ts";
+import { Expression, Expressions, LatexBeginEnd, shouldEmitLatex } from "../../deps.ts";
 import { RenderGlobalAttributes, TagProps } from "../global.tsx";
 import { RenderNonVoidElement } from "../renderUtils.tsx";
 
@@ -10,11 +10,19 @@ import { RenderNonVoidElement } from "../renderUtils.tsx";
 export function Ul(
   props: TagProps & { children?: Expressions },
 ): Expression {
-  return (
-    <RenderNonVoidElement
-      name="ul"
-      attrs={<RenderGlobalAttributes attrs={props} />}
-      children={props.children}
-    />
-  );
+  return <impure fun={(ctx) => {
+    if (shouldEmitLatex(ctx)) {
+      return <LatexBeginEnd name="enumerate">
+        <exps x={props.children}/>
+      </LatexBeginEnd>
+    } else {
+      return (
+        <RenderNonVoidElement
+          name="ul"
+          attrs={<RenderGlobalAttributes attrs={props} />}
+          children={props.children}
+        />
+      );
+    }
+  }}/>;
 }

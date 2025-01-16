@@ -72,6 +72,10 @@ export type MarginaleProps = {
    * Additional class(es) for this marginale.
    */
   extraClasses?: Expressions;
+  /**
+   * Whether the marginale should be inlined into the main body if the viewport us too small.
+   */
+  inlineable?: boolean;
 };
 
 /**
@@ -88,6 +92,10 @@ function wrapperProps(ctx: Context, mp: MarginaleProps): TagProps {
     clazz = clazz.concat(
       Array.isArray(mp.extraClasses) ? mp.extraClasses : [mp.extraClasses],
     );
+  }
+
+  if (mp.inlineable) {
+    clazz = clazz.concat(["inlineable"]);
   }
 
   return { clazz };

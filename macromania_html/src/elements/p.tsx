@@ -1,3 +1,4 @@
+import { shouldEmitLatex } from "../../../mod.tsx";
 import { Expression, Expressions } from "../../deps.ts";
 import { RenderGlobalAttributes, TagProps } from "../global.tsx";
 import { RenderNonVoidElement } from "../renderUtils.tsx";
@@ -8,11 +9,17 @@ import { RenderNonVoidElement } from "../renderUtils.tsx";
 export function P(
   props: TagProps & { children?: Expressions },
 ): Expression {
-  return (
-    <RenderNonVoidElement
-      name="p"
-      attrs={<RenderGlobalAttributes attrs={props} />}
-      children={props.children}
-    />
-  );
+  return <impure fun={(ctx) => {
+    if (shouldEmitLatex(ctx)) {
+      return <><exps x={props.children}/>{"\n\n"}</>
+    } else {
+      return (
+        <RenderNonVoidElement
+          name="p"
+          attrs={<RenderGlobalAttributes attrs={props} />}
+          children={props.children}
+        />
+      );
+    }
+  }}/>;
 }

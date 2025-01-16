@@ -1,3 +1,4 @@
+import { shouldEmitLatex } from "../../../mod.tsx";
 import { Expression } from "../../deps.ts";
 import { RenderGlobalAttributes, TagProps } from "../global.tsx";
 import { RenderVoidElement } from "../renderUtils.tsx";
@@ -8,10 +9,16 @@ import { RenderVoidElement } from "../renderUtils.tsx";
 export function Br(
   attrs: TagProps
 ): Expression {
-  return (
-    <RenderVoidElement
-      name="br"
-      attrs={<RenderGlobalAttributes attrs={attrs} />}
-    />
-  );
+  return <impure fun={(ctx) => {
+    if (shouldEmitLatex(ctx)) {
+      return "\\\\";
+    } else {
+      return (
+        <RenderVoidElement
+          name="br"
+          attrs={<RenderGlobalAttributes attrs={attrs} />}
+        />
+      );
+    }
+  }}/>;
 }

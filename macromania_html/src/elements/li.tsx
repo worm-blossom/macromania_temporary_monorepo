@@ -1,4 +1,4 @@
-import { Expression, Expressions } from "../../deps.ts";
+import { Expression, Expressions, shouldEmitLatex } from "../../deps.ts";
 import {
   EscapeHtml,
   RenderBoolean,
@@ -30,13 +30,19 @@ export type LiProps = {
 export function Li(
   props: LiProps & { children?: Expressions },
 ): Expression {
-  return (
-    <RenderNonVoidElement
-      name="li"
-      attrs={<RenderLiAttributes attrs={props} />}
-      children={props.children}
-    />
-  );
+  return <impure fun={(ctx) => {
+    if (shouldEmitLatex(ctx)) {
+      return <>\item <exps x={props.children}/></>
+    } else {
+      return (
+        <RenderNonVoidElement
+          name="li"
+          attrs={<RenderLiAttributes attrs={props} />}
+          children={props.children}
+        />
+      );
+    }
+  }}/>;
 }
 
 function RenderLiAttributes(

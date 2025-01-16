@@ -1,4 +1,4 @@
-import { Expression, Expressions } from "../../deps.ts";
+import { Expression, Expressions, LatexMacro, shouldEmitLatex } from "../../deps.ts";
 import { RenderGlobalAttributes, TagProps } from "../global.tsx";
 import { RenderNonVoidElement } from "../renderUtils.tsx";
 
@@ -8,11 +8,17 @@ import { RenderNonVoidElement } from "../renderUtils.tsx";
 export function Em(
   props: TagProps & { children?: Expressions },
 ): Expression {
-  return (
-    <RenderNonVoidElement
-      name="em"
-      attrs={<RenderGlobalAttributes attrs={props} />}
-      children={props.children}
-    />
-  );
+  return <impure fun={(ctx) => {
+    if (shouldEmitLatex(ctx)) {
+      return <LatexMacro name="textit"><exps x={props.children}/></LatexMacro>
+    } else {
+      return (
+        <RenderNonVoidElement
+          name="em"
+          attrs={<RenderGlobalAttributes attrs={props} />}
+          children={props.children}
+        />
+      );
+    }
+  }}/>;
 }

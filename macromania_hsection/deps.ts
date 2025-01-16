@@ -8,3 +8,4 @@ export * from "../macromania_html_utils/mod.tsx";
 export * from "../macromania_outfs/mod.tsx";
 export * from "../macromania_previews/mod.tsx";
 export * as Colors from "https://deno.land/std@0.204.0/fmt/colors.ts";
+export * from "../macromania_emit_latex/mod.tsx";

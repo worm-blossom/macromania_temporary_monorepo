@@ -28,7 +28,8 @@ export type MetaProps = {
     | "keywords"
     | "referrer"
     | "theme-color"
-    | "color-scheme";
+    | "color-scheme"
+    | "viewport";
   /**
    * When the [http-equiv attribute](https://html.spec.whatwg.org/multipage/semantics.html#attr-meta-http-equiv) is specified on a [meta element](https://html.spec.whatwg.org/multipage/semantics.html#the-meta-element), the element is a pragma directive.
    */

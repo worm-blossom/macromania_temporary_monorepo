@@ -11,6 +11,7 @@ import {
 import { RenderGlobalAttributes, TagProps } from "../global.tsx";
 import { RenderEnum } from "../renderUtils.tsx";
 import { CrossOrigin } from "../shared.tsx";
+import { LatexBeginEnd, shouldEmitLatex } from "../../deps.ts";
 
 /**
  * Props for the {@linkcode Ol} macro.
@@ -60,13 +61,21 @@ export type OlProps = {
 export function Ol(
   props: OlProps & { children?: Expressions },
 ): Expression {
-  return (
-    <RenderNonVoidElement
-      name="ol"
-      attrs={<RenderOlAttributes attrs={props} />}
-      children={props.children}
-    />
-  );
+  return <impure fun={(ctx) => {
+    if (shouldEmitLatex(ctx)) {
+      return <LatexBeginEnd name="enumerate">
+        <exps x={props.children}/>
+      </LatexBeginEnd>
+    } else {
+      return (
+        <RenderNonVoidElement
+          name="ol"
+          attrs={<RenderOlAttributes attrs={props} />}
+          children={props.children}
+        />
+      );
+    }
+  }}/>;
 }
 
 function RenderOlAttributes(

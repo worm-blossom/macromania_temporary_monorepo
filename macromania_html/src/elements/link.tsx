@@ -241,4 +241,5 @@ export type LinkLinkType =
   | "privacy-policy"
   | "search"
   | "stylesheet"
-  | "terms-of-service";
+  | "terms-of-service"
+  | "apple-touch-icon";

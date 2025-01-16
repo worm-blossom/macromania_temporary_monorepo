@@ -20,3 +20,4 @@ export * from "./macromania_pseudocode/mod.tsx";
 export * from "./macromania_rustic/mod.tsx";
 export * from "./macromania_bib/mod.tsx";
 export * from "./macromania_wip/mod.tsx";
+export * from "./macromania_emit_latex/mod.tsx";

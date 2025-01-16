@@ -936,7 +936,7 @@ export type FunctionLiteralUntypedProps = {
   /**
    * The function body.
    */
-  body: Expressions[];
+  body: MaybeCommented<Expressions>[];
   /**
    * Whether the body should be inline instead of an indented block.
    */

@@ -104,3 +104,15 @@ function spaceSeparated(exps: Expression[] | Expression): Expression {
     return exps;
   }
 }
+
+export function MBeginEnd({name, children}: {name: Expressions, children?: Expressions}): Expression {
+  return <>
+    \begin{"{"}<exps x={name}/>{"}"}
+      <exps x={children}/>
+    \end{"{"}<exps x={name}/>{"}"}
+  </>;
+}
+
+export function MAlign({children}: {children?: Expressions}): Expression {
+  return <MBeginEnd name="align*" children={children} />
+}

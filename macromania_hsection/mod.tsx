@@ -1,6 +1,7 @@
 import { Section } from "../macromania_html/src/elements/section.tsx";
 import {
   Expressions,
+  LatexMacro,
   Li,
   Ol,
   previewScopeDependencyCss,
@@ -29,6 +30,7 @@ import {
   H6,
   NumberingInfo,
   TagProps,
+  shouldEmitLatex,
 } from "./deps.ts";
 
 // Create logger.
@@ -354,8 +356,6 @@ export function Hsection(props: HsectionProps): Expression {
             ctx.halt();
           }
 
-          const Hmacro = levelToHmacro(state.level);
-
           const counter = getHsectionCounter(ctx, state.level);
           if (!noNumbering) {
             counter.increment(ctx);
@@ -364,34 +364,49 @@ export function Hsection(props: HsectionProps): Expression {
           const numberingInfo = configNaming(config, state.level);
           const numbering = counter.getFullValue(ctx);
 
-          return (
-            <>
-              {Def({
-                ...props,
-                noPreview: true,
-                defClass: ["hsection"],
-                defData: { "hsection-level": `${state.level}` },
-                refClass: ["hsection"],
-                refData: { "hsection-level": `${state.level}` },
-                numbering: numberingInfo === null ? undefined : {
-                  numbering: numbering,
-                  info: numberingInfo,
-                },
-                defTag: (children, id) => Hmacro({ id, children }),
-                children: (
-                  <>
-                    {noNumbering ? "" : config.titleRenderPre!(ctx, numbering)}
-                    {title}
-                    {noNumbering ? "" : config.titleRenderPost!(ctx, numbering)}
-                  </>
-                ),
-                r: title,
-              })}
-              <Section data={{ hsection: props.n }}>
-                <exps x={children} />
-              </Section>
+          if (shouldEmitLatex(ctx)) {
+            let macroname = "section";
+            for (let i = 1; i < state.level; i++) {
+              macroname = `sub${macroname}`;
+            }
+
+            return <>
+              <LatexMacro name={macroname}><exps x={title}/></LatexMacro>
+              <LatexMacro name="label"><exps x={props.n}/></LatexMacro>
+              {"\n\n"}<exps x={children}/>
             </>
-          );
+          } else {
+            const Hmacro = levelToHmacro(state.level);
+  
+            return (
+              <>
+                {Def({
+                  ...props,
+                  noPreview: true,
+                  defClass: ["hsection"],
+                  defData: { "hsection-level": `${state.level}` },
+                  refClass: ["hsection"],
+                  refData: { "hsection-level": `${state.level}` },
+                  numbering: numberingInfo === null ? undefined : {
+                    numbering: numbering,
+                    info: numberingInfo,
+                  },
+                  defTag: (children, id) => Hmacro({ id, children }),
+                  children: (
+                    <>
+                      {noNumbering ? "" : config.titleRenderPre!(ctx, numbering)}
+                      <exps x={title}/>
+                      {noNumbering ? "" : config.titleRenderPost!(ctx, numbering)}
+                    </>
+                  ),
+                  r: title,
+                })}
+                <Section data={{ hsection: props.n }}>
+                  <exps x={children} />
+                </Section>
+              </>
+            );
+          }
         }}
       />
     </lifecycle>
