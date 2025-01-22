@@ -394,9 +394,9 @@ export function FunctionTypeNamed(
 }
 
 /**
- * The type to indicate fresh ids that should be bound. Use a string if the id itself can be used as a DefRef `n` prop, use a pair of the id first and the desired `n` prop second otherwise.
+ * The type to indicate fresh ids that should be bound. Use a string if the id itself can be used as a DefRef `n` prop, use a pair of the id first and the desired `n` prop second otherwise. Add a third Expression that specifies a plural form (the `rs` prop) if needed.
  */
-export type FreshId = string | [Expression, string];
+export type FreshId = string | [Expression, string] | [Expression, string, Expression];
 
 function freshIdN(id: FreshId): string {
   return Array.isArray(id) ? id[1] : id;
@@ -409,50 +409,99 @@ function freshIdId(id: FreshId): Expression {
 export function RenderFreshValue(
   { id }: { id: FreshId },
 ): Expression {
-  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
-  return <DefValue n={n} r={r} />;
+  if (Array.isArray(id)) {
+    if (id.length === 2) {
+      return <DefValue n={id[1]} r={id[0]} />;
+    } else {
+      return <DefValue n={id[1]} r={id[0]} rs={id[2]} />;
+    }
+  } else {
+    return <DefValue n={id} r={id} />;
+  }
 }
 
 export function RenderFreshFunction(
   { id }: { id: FreshId },
 ): Expression {
-  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
-  return <DefFunction n={n} r={r} />;
+  if (Array.isArray(id)) {
+    if (id.length === 2) {
+      return <DefFunction n={id[1]} r={id[0]} />;
+    } else {
+      return <DefFunction n={id[1]} r={id[0]} rs={id[2]} />;
+    }
+  } else {
+    return <DefFunction n={id} r={id} />;
+  }
 }
 
 export function RenderFreshType(
   { id }: { id: FreshId },
 ): Expression {
-  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
-  return <DefType n={n} r={r} />;
+  if (Array.isArray(id)) {
+    if (id.length === 2) {
+      return <DefType n={id[1]} r={id[0]} />;
+    } else {
+      return <DefType n={id[1]} r={id[0]} rs={id[2]} />;
+    }
+  } else {
+    return <DefType n={id} r={id} />;
+  }
 }
 
 export function RenderFreshField(
   { id }: { id: FreshId },
 ): Expression {
-  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
-  return <DefField n={n} r={r} />;
+  if (Array.isArray(id)) {
+    if (id.length === 2) {
+      return <DefField n={id[1]} r={id[0]} />;
+    } else {
+      return <DefField n={id[1]} r={id[0]} rs={id[2]} />;
+    }
+  } else {
+    return <DefField n={id} r={id} />;
+  }
 }
 
 export function RenderFreshVariant(
   { id }: { id: FreshId },
 ): Expression {
-  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
-  return <DefVariant n={n} r={r} />;
+  if (Array.isArray(id)) {
+    if (id.length === 2) {
+      return <DefVariant n={id[1]} r={id[0]} />;
+    } else {
+      return <DefVariant n={id[1]} r={id[0]} rs={id[2]} />;
+    }
+  } else {
+    return <DefVariant n={id} r={id} />;
+  }
 }
 
 export function RenderFreshInterface(
   { id }: { id: FreshId },
 ): Expression {
-  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
-  return <DefInterface n={n} r={r} />;
+  if (Array.isArray(id)) {
+    if (id.length === 2) {
+      return <DefInterface n={id[1]} r={id[0]} />;
+    } else {
+      return <DefInterface n={id[1]} r={id[0]} rs={id[2]} />;
+    }
+  } else {
+    return <DefInterface n={id} r={id} />;
+  }
 }
 
 export function RenderFreshTypeArg(
   { id, fake }: { id: FreshId; fake?: boolean },
 ): Expression {
-  const [r, n] = Array.isArray(id) ? [id[0], id[1]] : [id, id];
-  return <DefTypeArg n={n} r={r} fake={fake} />;
+  if (Array.isArray(id)) {
+    if (id.length === 2) {
+      return <DefTypeArg n={id[1]} r={id[0]} fake={fake} />;
+    } else {
+      return <DefTypeArg n={id[1]} r={id[0]} rs={id[2]} fake={fake} />;
+    }
+  } else {
+    return <DefTypeArg n={id} r={id} fake={fake} />;
+  }
 }
 
 export type ArrayTypeProps = {
