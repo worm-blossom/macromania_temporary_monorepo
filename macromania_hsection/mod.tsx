@@ -193,13 +193,13 @@ export type HsectionProps =
      * Do not render any numbering for this section. Do not count the section for numbering purposes either.
      */
     noNumbering?: boolean;
-    // /**
-    //  * A short version of the title, to be used in space-constrained
-    //  * tables of contents.
-    //  *
-    //  * Defaults to the normal `title`.
-    //  */
-    // short_title?: Expression;
+    /**
+     * A short version of the title, to be used in space-constrained
+     * tables of contents.
+     *
+     * Defaults to the normal `title`.
+     */
+    shortTitle?: Expressions;
   }
   & DefProps
   & { children?: Expressions };
@@ -228,14 +228,16 @@ interface HSectionState {
 
 interface SectionStructure {
   id: string;
+  short_title: Expression | null;
   level: number;
   children: SectionStructure[];
   child_id_to_index: Map<string, number>;
 }
 
-function new_section_structure(id: string, level: number): SectionStructure {
+function new_section_structure(id: string, short_title: Expression | null, level: number): SectionStructure {
   return {
     id,
+    short_title,
     level,
     children: [],
     child_id_to_index: new Map(),
@@ -274,7 +276,7 @@ const [getState, _setState] = createSubstate<HSectionState>(() => {
     creationRound: -1,
     level: -1,
     finger: [0],
-    structure: new_section_structure("", 0),
+    structure: new_section_structure("", "", 0),
     current_breadcrumbs: [],
     counterH1,
     counterH2,
@@ -422,7 +424,7 @@ export function Hsection(props: HsectionProps): Expression {
         structure = structure.children[state.finger[level]];
       }
 
-      structure.children.push(new_section_structure(id, state.level));
+      structure.children.push(new_section_structure(id, props.shortTitle === undefined ? null : <exps x={props.shortTitle}/>, state.level));
       structure.child_id_to_index.set(id, structure.children.length - 1);
 
       state.finger.push(0);
@@ -500,7 +502,7 @@ function TocStructure(
 
   return (
     <Li data={data}>
-      <R n={structure.id} />
+      {structure.short_title === null ? <R n={structure.id} /> : <R n={structure.id}>{structure.short_title}</R>}
       {structure.level >= maxDepth ? "" : (
         <Ol
           children={structure.children.map((child) => (
@@ -511,43 +513,3 @@ function TocStructure(
     </Li>
   );
 }
-// export function render_structure(structure: SectionStructure, current_level: number, max_depth: number, is_toplevel: boolean): Expression {
-//   const macro = new_macro(
-//     (_args, ctx) => {
-//       const name = resolve_name(structure.id, "hsection", ctx)!;
-//       const rendered_title = name.get(rendered_title_key);
-//       const short_title = name.get(short_title_key);
-
-//       if (rendered_title === undefined) {
-//         return null;
-//       } else {
-//         const toc_heading_attributes: Attributes = {
-//           class: `toc_heading`
-//         };
-//         toc_heading_attributes["data-hsection"] = structure.id;
-//         toc_heading_attributes["data-hlevel"] = `${current_level}`;
-
-//         if (is_toplevel) {
-//           return [
-//             li({...toc_heading_attributes, class: 'toc_top'}, link_name(structure.id, "(Top)")),
-//             structure.children.map(child => render_structure(child, current_level + 1, max_depth, false)),
-//           ];
-//         } else {
-//           return div(
-//             {class: "toc_section"},
-//             li(toc_heading_attributes, [
-//               link_name(structure.id, short_title ? short_title : rendered_title),
-//               ol(
-//                 {class: "toc_children"},
-//                 structure.children.map(child => render_structure(child, current_level + 1, max_depth, false)),
-//               ),
-//             ]),
-
-//           );
-//         }
-//       }
-//     },
-//   );
-
-//   return new Invocation(macro, []);
-// }
