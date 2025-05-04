@@ -6,18 +6,18 @@ Imagine a macro `<FavoriteWord />` whose output should be a configurable word, o
 
 ```tsx
 <Config options={
-  <ConfigFavoriteWord word="chouette" upperCase/>
+  <ConfigFavoriteWord word="sternschnuppe" upperCase/>
   {/* Config for further modules can go here as well. */}
 }>
-  <FavoriteWord />{/* Evaluates to "CHOUETTE". */}
+  <FavoriteWord />{/* Evaluates to "STERNSCHNUPPE". */}
 
   {/* You can locally override configuration options. */}
-  <Config options={<ConfigFavoriteWord word="pneu"/>}>
-    <FavoriteWord />{/* Evaluates to "PNEU". */}
+  <Config options={<ConfigFavoriteWord word="quirlig"/>}>
+    <FavoriteWord />{/* Evaluates to "QUIRLIG", we didn't set `uppercase` to false. */}
   </Config>
 
   {/* The override was purely local. */}
-  <FavoriteWord />{/* Evaluates to "CHOUETTE". */}
+  <FavoriteWord />{/* Evaluates to "STERNSCHNUPPE". */}
 </Config>
 ```
 
@@ -48,9 +48,9 @@ const [
   getter,
   ConfigFavoriteWord,
 ] = createConfigOptions<FavoriteWordOptions, FavoriteWordChanges>(
-  // name of the setter macro, as it should appear in debug information.
+  // Name of the setter macro, as it should appear in debug information.
   "ConfigFavoriteWord", 
-  // Initial config state (of type `FavoriteWordOptions`).
+  // Closure returning the initial config state (of type `FavoriteWordOptions`).
   () => ({
     word: "default",
     upperCase: false,

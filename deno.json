@@ -1,0 +1,18 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "display": "Deno",
+  
+    
+  
+    "compilerOptions": {
+      "jsx": "react-jsxdev",
+      "jsxImportSource": "macromaniajsx",
+      "lib": ["deno.ns", "dom"],
+      "strict": true
+    },
+  
+    "tasks": {
+      "test": "cd test; deno test -A tests.tsx"
+    }
+  }
+  

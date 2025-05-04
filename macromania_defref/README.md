@@ -51,7 +51,7 @@ The `<Def/>` macro can optionally define plural forms; the `rsb` option for the 
 </>
 ```
 
-Use the `defaultRs` option to set up automatic plural form construction, if your language allows for it. `<Rsb/>` forms are then automatically derived as well.
+Use the `defaultRp` option to set up automatic plural form construction, if your language allows for it. `<Rsb/>` forms are then automatically derived as well.
 
 ### Arbitrary Forms
 
